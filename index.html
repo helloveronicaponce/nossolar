@@ -296,7 +296,7 @@ input.row-cb{width:15px;height:15px;accent-color:var(--g);cursor:pointer;opacity
   <div class="logo">🏠 Nosso Lar</div>
   <div class="nav-mes" id="nav-mes">
     <button class="nav-arr" id="nav-prev" onclick="navMes(-1)">‹</button>
-    <div class="nav-label" id="nav-label" onclick="toggleNavPicker()">
+    <div class="nav-label" id="nav-label" onclick="toggleNavPicker(event)">
       <span id="nav-mes-txt"></span><span id="nav-ano-txt"></span>
     </div>
     <button class="nav-arr" id="nav-next" onclick="navMes(1)">›</button>
@@ -583,31 +583,25 @@ function buildSel(){
 
   // picker anos
   const npAnos=document.getElementById('np-anos');
-  npAnos.innerHTML=anos.map(a=>
-    `<button class="np-ano${a===anoAtual?' on':''}" data-ano="${a}">${a}</button>`
-  ).join('');
-  npAnos.querySelectorAll('.np-ano').forEach(b=>b.addEventListener('mousedown',ev=>{
-    ev.preventDefault();ev.stopPropagation();pickAno(b.dataset.ano);
-  }));
+  npAnos.innerHTML=anos.map(a=>`<button class="np-ano${a===anoAtual?' on':''}" data-ano="${a}">${a}</button>`).join('');
+  npAnos.querySelectorAll('.np-ano').forEach(b=>{
+    function doPickAno(ev){ev.stopPropagation();ev.preventDefault();pickAno(b.dataset.ano);}
+    b.addEventListener('click',doPickAno);
+    b.addEventListener('touchend',doPickAno);
+  });
 
   // picker meses (12 sempre, desabilita os que não têm dados)
   const npMeses=document.getElementById('np-meses');
   npMeses.innerHTML=MN.map((nm,i)=>{
-    const mi=i+1;
-    const disp=mesesDoAno.includes(mi);
+    const mi=i+1;const disp=mesesDoAno.includes(mi);
     const val=anoAtual+'-'+(mi<10?'0':'')+mi;
     return `<button class="np-mes${val===mes?' on':''}" ${disp?'':'disabled'} data-mes="${val}">${nm.slice(0,3)}</button>`;
   }).join('');
-  npMeses.querySelectorAll('.np-mes:not(:disabled)').forEach(b=>b.addEventListener('mousedown',ev=>{
-    ev.preventDefault();ev.stopPropagation();changeMes(b.dataset.mes);
-  }));
-  // touch support
-  npAnos.querySelectorAll('.np-ano').forEach(b=>b.addEventListener('touchend',ev=>{
-    ev.preventDefault();ev.stopPropagation();pickAno(b.dataset.ano);
-  }));
-  npMeses.querySelectorAll('.np-mes:not(:disabled)').forEach(b=>b.addEventListener('touchend',ev=>{
-    ev.preventDefault();ev.stopPropagation();changeMes(b.dataset.mes);
-  }));
+  npMeses.querySelectorAll('.np-mes:not([disabled])').forEach(b=>{
+    function doChangeMes(ev){ev.stopPropagation();ev.preventDefault();changeMes(b.dataset.mes);}
+    b.addEventListener('click',doChangeMes);
+    b.addEventListener('touchend',doChangeMes);
+  });
 }
 function pickAno(ano){
   const todos=getMesesDisp();
@@ -625,16 +619,25 @@ function navMes(dir){
   if(novo)changeMes(novo);
 }
 let _pickerOpen=false;
-function toggleNavPicker(){
+function toggleNavPicker(e){
+  if(e){e.stopPropagation();e.preventDefault();}
   _pickerOpen=!_pickerOpen;
-  document.getElementById('nav-picker').style.display=_pickerOpen?'block':'none';
+  const p=document.getElementById('nav-picker');
+  p.style.display=_pickerOpen?'block':'none';
   if(_pickerOpen){
-    setTimeout(()=>document.addEventListener('click',function h(e){
-      if(!document.getElementById('nav-mes').contains(e.target)){
-        _pickerOpen=false;document.getElementById('nav-picker').style.display='none';
-        document.removeEventListener('click',h);
+    buildSel(); // rebuid picker contents when opening
+    setTimeout(()=>{
+      function h(ev){
+        if(!document.getElementById('nav-mes').contains(ev.target)){
+          _pickerOpen=false;
+          document.getElementById('nav-picker').style.display='none';
+          document.removeEventListener('click',h);
+          document.removeEventListener('touchend',h);
+        }
       }
-    }),10);
+      document.addEventListener('click',h);
+      document.addEventListener('touchend',h);
+    },50);
   }
 }
 function changeMes(m){mes=m;fil='todos';closeDd();_pickerOpen=false;const p=document.getElementById('nav-picker');if(p)p.style.display='none';document.querySelectorAll('.pill').forEach(b=>b.classList.remove('on'));document.querySelector('[data-f="todos"]').classList.add('on');buildSel();render();renderSide();}
@@ -791,13 +794,22 @@ function render(){
   }).join('');
 
   tb.querySelectorAll('.row-cb').forEach(cb=>{if(selIds.has(cb.dataset.id)){cb.checked=true;cb.closest('.tr')?.classList.add('sel');}});
-  tb.querySelectorAll('.dn').forEach(e=>e.addEventListener('click',ev=>{ev.stopPropagation();openModal(e.dataset.id);}));
-  tb.querySelectorAll('.dd').forEach(e=>e.addEventListener('click',ev=>editDate(ev,e.dataset.id)));
-  tb.querySelectorAll('.vd').forEach(e=>e.addEventListener('click',ev=>editVal(ev,e.dataset.id)));
-  tb.querySelectorAll('.chip').forEach(e=>e.addEventListener('click',ev=>toggleStatus(ev,e.dataset.id)));
-  tb.querySelectorAll('.ib.del').forEach(e=>e.addEventListener('click',ev=>{ev.stopPropagation();delItem(e.dataset.id);}));
-  // Mobile: tap on row to open modal
-  if(mob){tb.querySelectorAll('[data-id]').forEach(row=>{if(row.classList.contains('tr')||row.style.display==='grid'){row.addEventListener('click',ev=>{if(ev.target.closest('.chip,.dd,.vd,.dn,.ra,.ib'))return;const id=row.dataset.id;if(id)openModal(id);});}});}
+  // delegação única no container — evita problemas de captura no mobile
+  tb.addEventListener('click',function tbClick(ev){
+    const chip=ev.target.closest('.chip');
+    if(chip){ev.stopPropagation();toggleStatus(ev,chip.dataset.id);return;}
+    const ddEl=ev.target.closest('.dd');
+    if(ddEl){ev.stopPropagation();editDate({stopPropagation:()=>{},currentTarget:ddEl},ddEl.dataset.id);return;}
+    const vd=ev.target.closest('.vd');
+    if(vd){ev.stopPropagation();editVal(ev,vd.dataset.id);return;}
+    const dn=ev.target.closest('.dn');
+    if(dn){ev.stopPropagation();openModal(dn.dataset.id);return;}
+    const del=ev.target.closest('.ib.del');
+    if(del){ev.stopPropagation();delItem(del.dataset.id);return;}
+    const cb=ev.target.closest('.row-cb');
+    if(cb){return;}
+    if(mob){const row=ev.target.closest('[data-id]');if(row&&(row.classList.contains('tr')||row.style.display==='grid')){openModal(row.dataset.id);}}
+  });
 }
 
 /* ── SIDEBAR ── */
