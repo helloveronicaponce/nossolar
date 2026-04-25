@@ -102,6 +102,16 @@ input.row-cb{width:15px;height:15px;accent-color:var(--g);cursor:pointer;opacity
 .ib{width:28px;height:28px;border-radius:6px;border:1.5px solid var(--b);background:var(--w);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;font-family:Inter,sans-serif}
 .ib:hover{background:var(--bg)}.ib.del:hover{background:#fee2e2;border-color:#fca5a5;color:#dc2626}
 .di{border:1.5px solid var(--g);border-radius:5px;padding:2px 6px;font-size:12px;outline:none;font-family:Inter,sans-serif;width:110px}
+/* ── EDIT-DATE POPOVER ── */
+.rec-pop{position:absolute;z-index:200;background:var(--w);border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.13);border:1.5px solid var(--b);padding:.75rem 1rem;display:flex;flex-direction:column;gap:.5rem;min-width:220px;animation:fadeIn .12s ease}
+.rec-pop p{font-size:12px;font-weight:600;color:var(--t2);margin-bottom:2px}
+.rec-pop button{border:none;border-radius:8px;padding:.45rem .9rem;font-family:Inter,sans-serif;font-size:12px;font-weight:600;cursor:pointer;text-align:left;transition:background .1s}
+.rec-pop .rp-este{background:var(--gl);color:var(--gd)}
+.rec-pop .rp-este:hover{background:#d1f5e0}
+.rec-pop .rp-seg{background:#eff6ff;color:#1e40af}
+.rec-pop .rp-seg:hover{background:#dbeafe}
+.rec-pop .rp-cancel{background:var(--bg);color:var(--t2)}
+.rec-pop .rp-cancel:hover{background:var(--b)}
 .hint{font-size:11px;color:var(--t3);padding:.5rem .75rem;font-style:italic}
 .hint strong{color:var(--t2)}
 .empty{text-align:center;padding:3rem;color:var(--t3)}
@@ -522,7 +532,7 @@ function getSI(m,depth){
 
 /* ── BUILD SEL ── */
 function buildSel(){
-  const opts=['2026-12','2026-11','2026-10','2026-09','2026-08','2026-07','2026-06','2026-05','2026-04','2026-03'];
+  const opts=Object.keys(D).filter(k=>/^\d{4}-\d{2}$/.test(k)&&Array.isArray(D[k])).sort((a,b)=>b.localeCompare(a));
   document.getElementById('sel').innerHTML=opts.map(m=>{const[y,mo]=m.split('-');return'<option value="'+m+'"'+(m===mes?' selected':'')+'>'+MN[+mo-1]+' '+y+'</option>';}).join('');
 }
 function changeMes(m){mes=m;fil='todos';closeDd();document.querySelectorAll('.pill').forEach(b=>b.classList.remove('on'));document.querySelector('[data-f="todos"]').classList.add('on');render();renderSide();}
@@ -831,12 +841,58 @@ function toggleStatus(e,id){
 /* ── EDIT DATE ── */
 function editDate(e,id){
   e.stopPropagation();const el=e.currentTarget;
-  const r=(D[mes]||[]).find(x=>x.id===id);if(!r)return;
+  // Busca o lançamento — pode estar no mês atual ou ser um clone virtual
+  const rInMes=(D[mes]||[]).find(x=>x.id===id);
+  const rVirtual=rows().find(x=>x.id===id);
+  const r=rInMes||rVirtual;
+  if(!r)return;
   const isPago=r.status==='pago';const field=isPago?'pag':'venc';
+  const isRec=!!(r.recorrente||r._recClone);
+
   const inp=document.createElement('input');inp.type='date';inp.value=(isPago?r.pag:r.venc)||'';inp.className='di';
-  el.replaceWith(inp);inp.focus();
-  const c=()=>{if(inp.value)patch(id,field,inp.value);else render();};
-  inp.addEventListener('blur',c);inp.addEventListener('keydown',ev=>{if(ev.key==='Enter')inp.blur();if(ev.key==='Escape')render();});inp.addEventListener('click',ev=>ev.stopPropagation());
+
+  // Wrapper relativo para poder posicionar o popover
+  const wrap=document.createElement('span');wrap.style.position='relative';
+  el.replaceWith(wrap);wrap.appendChild(inp);inp.focus();
+
+  let committed=false;
+
+  const applyDate=(value,scope)=>{
+    if(committed)return;committed=true;
+    if(value)patchDate(id,field,value,scope,r);else render();
+  };
+
+  const showRecPop=(value)=>{
+    // Remove qualquer popover anterior
+    document.querySelectorAll('.rec-pop').forEach(p=>p.remove());
+    const pop=document.createElement('div');pop.className='rec-pop';
+    pop.innerHTML='<p>Alterar data do recorrente</p>';
+    const bEste=document.createElement('button');bEste.className='rp-este';bEste.textContent='📌 Só este mês ('+mes.slice(5)+'/'+mes.slice(0,4)+')';
+    const bSeg=document.createElement('button');bSeg.className='rp-seg';bSeg.textContent='🔁 Este e todos os seguintes';
+    const bCan=document.createElement('button');bCan.className='rp-cancel';bCan.textContent='Cancelar';
+    pop.append(bEste,bSeg,bCan);
+    wrap.appendChild(pop);
+    bEste.onclick=(ev)=>{ev.stopPropagation();pop.remove();applyDate(value,'este');};
+    bSeg.onclick=(ev)=>{ev.stopPropagation();pop.remove();applyDate(value,'seguintes');};
+    bCan.onclick=(ev)=>{ev.stopPropagation();pop.remove();render();};
+    // Fecha ao clicar fora
+    setTimeout(()=>document.addEventListener('click',function h(ev){if(!pop.contains(ev.target)){pop.remove();if(!committed)render();document.removeEventListener('click',h);}},{once:false}),10);
+  };
+
+  const onCommit=()=>{
+    if(committed)return;
+    const value=inp.value;
+    if(!value){render();return;}
+    if(isRec&&field==='venc'){
+      showRecPop(value);
+    } else {
+      applyDate(value,'este');
+    }
+  };
+
+  inp.addEventListener('blur',()=>{if(!committed)onCommit();});
+  inp.addEventListener('keydown',ev=>{if(ev.key==='Enter'){inp.blur();}if(ev.key==='Escape'){committed=true;render();}});
+  inp.addEventListener('click',ev=>ev.stopPropagation());
 }
 
 /* ── EDIT VAL ── */
@@ -862,6 +918,71 @@ function patch(id,field,value){
   }
   if(field==='pag'&&value){const newMes=value.slice(0,7);if(newMes!==mes){const entry={...D[mes][idx],pag:value};D[mes].splice(idx,1);if(!D[newMes])D[newMes]=[];D[newMes].push(entry);saveData();render();renderSide();return;}}
   D[mes][idx][field]=value;saveData();render();renderSide();
+}
+
+/* ── PATCH DATE (recorrentes com escopo) ── */
+function patchDate(id,field,value,scope,rOrig){
+  // scope: 'este' = só este mês | 'seguintes' = este + todos os meses futuros
+  const isClone=!!(rOrig&&rOrig._recClone);
+  const paiId=isClone?rOrig._recClone:id;
+  const newDay=value.slice(8,10); // "DD" da nova data
+
+  if(scope==='seguintes'&&field==='venc'){
+    // 1. Atualiza o dia do lançamento pai (recorrente original)
+    let paiMes=null,paiIdx=-1;
+    Object.entries(D).forEach(([m,arr])=>{
+      if(!Array.isArray(arr))return;
+      const i=arr.findIndex(r=>r.id===paiId&&r.recorrente&&!r._recClone);
+      if(i>=0){paiMes=m;paiIdx=i;}
+    });
+    if(paiMes!==null&&paiIdx>=0){
+      const paiVenc=D[paiMes][paiIdx].venc||'';
+      D[paiMes][paiIdx].venc=paiVenc.slice(0,8)+newDay;
+    }
+    // 2. Remove overrides explícitos de meses futuros (clones gravados) cujo dia divergia
+    //    para que passem a usar o novo dia padrão do pai
+    Object.keys(D).forEach(m=>{
+      if(m<=mes&&m!==mes)return; // só meses >= atual
+      if(!Array.isArray(D[m]))return;
+      D[m]=D[m].filter(r=>!(r._recClone===paiId&&m!==paiMes));
+    });
+    // 3. Se este mês já tem um clone gravado com dia diferente, atualiza ou remove
+    if(D[mes]){
+      const ciIdx=D[mes].findIndex(r=>r.id===id||(r._recClone===paiId));
+      if(ciIdx>=0){
+        D[mes][ciIdx].venc=mes+'-'+newDay;
+      }
+    }
+    saveData();render();renderSide();
+    return;
+  }
+
+  // scope === 'este': cria/atualiza um override explícito só neste mês
+  if(field==='venc'){
+    if(!D[mes])D[mes]=[];
+    // Se o lançamento já está gravado neste mês, atualiza normalmente
+    const existIdx=D[mes].findIndex(r=>r.id===id);
+    if(existIdx>=0){
+      const newMes=value.slice(0,7);
+      if(newMes!==mes){
+        const entry={...D[mes][existIdx],venc:value};D[mes].splice(existIdx,1);
+        if(!D[newMes])D[newMes]=[];D[newMes].push(entry);
+        saveData();render();renderSide();return;
+      }
+      D[mes][existIdx].venc=value;
+      saveData();render();renderSide();
+      return;
+    }
+    // É um clone virtual — grava um override explícito neste mês
+    if(isClone&&rOrig){
+      const override={...rOrig,id:id,_recClone:paiId,venc:value,pag:null,status:rOrig.status||'pendente'};
+      D[mes].push(override);
+      saveData();render();renderSide();
+      return;
+    }
+  }
+  // Fallback: patch simples
+  patch(id,field,value);
 }
 
 /* ── DELETE ── */
