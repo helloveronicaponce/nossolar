@@ -945,7 +945,10 @@ function toggleStatus(e,id){
   document.body.appendChild(el);dd=el;
   const rect=e.currentTarget.getBoundingClientRect();
   el.style.top=(rect.bottom+4+window.scrollY)+'px';el.style.left=Math.max(4,rect.left+window.scrollX-40)+'px';
-  setTimeout(()=>document.addEventListener('click',closeDd,{once:true}),10);
+  setTimeout(()=>document.addEventListener('click',function h(ev2){
+    if(el.contains(ev2.target))return;
+    closeDd();document.removeEventListener('click',h);
+  }),10);
 }
 
 /* ── EDIT DATE ── */
@@ -1213,7 +1216,7 @@ function toast(msg){const t=document.createElement('div');t.className='toast';t.
 /* ── TABLE DELEGATION (registrada 1x) ── */
 function tbDelegate(ev){
   const chip=ev.target.closest('.chip');
-  if(chip){ev.stopPropagation();toggleStatus(ev,chip.dataset.id);return;}
+  if(chip){ev.stopPropagation();toggleStatus({stopPropagation:()=>{},currentTarget:chip},chip.dataset.id);return;}
   const ddEl=ev.target.closest('.dd');
   if(ddEl){ev.stopPropagation();editDate({stopPropagation:()=>{},currentTarget:ddEl},ddEl.dataset.id);return;}
   const vd=ev.target.closest('.vd');
