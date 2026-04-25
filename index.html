@@ -582,17 +582,32 @@ function buildSel(){
   document.getElementById('nav-next').disabled=idx>=todos.length-1;
 
   // picker anos
-  document.getElementById('np-anos').innerHTML=anos.map(a=>
-    `<button class="np-ano${a===anoAtual?' on':''}" onclick="pickAno('${a}')">${a}</button>`
+  const npAnos=document.getElementById('np-anos');
+  npAnos.innerHTML=anos.map(a=>
+    `<button class="np-ano${a===anoAtual?' on':''}" data-ano="${a}">${a}</button>`
   ).join('');
+  npAnos.querySelectorAll('.np-ano').forEach(b=>b.addEventListener('mousedown',ev=>{
+    ev.preventDefault();ev.stopPropagation();pickAno(b.dataset.ano);
+  }));
 
   // picker meses (12 sempre, desabilita os que não têm dados)
-  document.getElementById('np-meses').innerHTML=MN.map((nm,i)=>{
+  const npMeses=document.getElementById('np-meses');
+  npMeses.innerHTML=MN.map((nm,i)=>{
     const mi=i+1;
     const disp=mesesDoAno.includes(mi);
     const val=anoAtual+'-'+(mi<10?'0':'')+mi;
-    return `<button class="np-mes${val===mes?' on':''}" ${disp?'':'disabled'} onclick="changeMes('${val}')">${nm.slice(0,3)}</button>`;
+    return `<button class="np-mes${val===mes?' on':''}" ${disp?'':'disabled'} data-mes="${val}">${nm.slice(0,3)}</button>`;
   }).join('');
+  npMeses.querySelectorAll('.np-mes:not(:disabled)').forEach(b=>b.addEventListener('mousedown',ev=>{
+    ev.preventDefault();ev.stopPropagation();changeMes(b.dataset.mes);
+  }));
+  // touch support
+  npAnos.querySelectorAll('.np-ano').forEach(b=>b.addEventListener('touchend',ev=>{
+    ev.preventDefault();ev.stopPropagation();pickAno(b.dataset.ano);
+  }));
+  npMeses.querySelectorAll('.np-mes:not(:disabled)').forEach(b=>b.addEventListener('touchend',ev=>{
+    ev.preventDefault();ev.stopPropagation();changeMes(b.dataset.mes);
+  }));
 }
 function pickAno(ano){
   const todos=getMesesDisp();
@@ -782,7 +797,7 @@ function render(){
   tb.querySelectorAll('.chip').forEach(e=>e.addEventListener('click',ev=>toggleStatus(ev,e.dataset.id)));
   tb.querySelectorAll('.ib.del').forEach(e=>e.addEventListener('click',ev=>{ev.stopPropagation();delItem(e.dataset.id);}));
   // Mobile: tap on row to open modal
-  if(mob){tb.querySelectorAll('[data-id]').forEach(row=>{if(row.classList.contains('tr')||row.style.display==='grid'){row.addEventListener('click',ev=>{const id=row.dataset.id;if(id)openModal(id);});}});}
+  if(mob){tb.querySelectorAll('[data-id]').forEach(row=>{if(row.classList.contains('tr')||row.style.display==='grid'){row.addEventListener('click',ev=>{if(ev.target.closest('.chip,.dd,.vd,.dn,.ra,.ib'))return;const id=row.dataset.id;if(id)openModal(id);});}});}
 }
 
 /* ── SIDEBAR ── */
