@@ -905,16 +905,28 @@ function pagarFaturaCartao(cid){
 function closeDd(){if(dd){dd.remove();dd=null;}}
 function toggleStatus(e,id){
   e.stopPropagation();if(dd&&dd._id===id){closeDd();return;}closeDd();
-  const r=(D[mes]||[]).find(x=>x.id===id);if(!r)return;
+  const rInMes=(D[mes]||[]).find(x=>x.id===id);
+  const rVirtual=rows().find(x=>x.id===id);
+  const r=rInMes||rVirtual;if(!r)return;
+  const isClone=!!(r._recClone);
   const el=document.createElement('div');el.className='sdd';el._id=id;
   SO.forEach(o=>{
     const d=document.createElement('div');d.className='sdo';
     d.innerHTML='<span class="sd" style="background:'+o.c+'"></span>'+o.l;
     if(o.v===r.status)d.style.background='var(--bg)';
     d.addEventListener('click',ev=>{
-      ev.stopPropagation();if(!D[mes])return;
-      const idx=D[mes].findIndex(r2=>r2.id===id);if(idx<0)return;
-      D[mes][idx].status=o.v;if(o.v==='pago')D[mes][idx].pag=today();
+      ev.stopPropagation();
+      if(!D[mes])D[mes]=[];
+      if(isClone){
+        // materializa o clone no mês atual antes de alterar
+        const override={...r,status:o.v,pag:o.v==='pago'?today():r.pag||null};
+        const existIdx=D[mes].findIndex(x=>x.id===id);
+        if(existIdx>=0)D[mes][existIdx]=override;else D[mes].push(override);
+      } else {
+        const idx=D[mes].findIndex(r2=>r2.id===id);if(idx<0)return;
+        D[mes][idx].status=o.v;if(o.v==='pago')D[mes][idx].pag=today();
+        if(o.v!=='pago')D[mes][idx].pag=null;
+      }
       saveData();render();renderSide();closeDd();
     });
     el.appendChild(d);
