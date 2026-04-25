@@ -478,17 +478,46 @@ function rows(){
 }
 
 /* ── SALDO ── */
-function getSI(m,d){
-  if((d||0)>24)return 0;
+// Retorna o saldo FINAL de um mês (= o que sobrou ao fim do mês)
+// Usado como saldo inicial do mês seguinte
+function getSaldoFinal(m,depth){
+  if((depth||0)>24)return 0; // proteção contra recursão infinita
   const meta=D[m+'_meta']||{};
-  if(meta.saldoInicialManual!==undefined)return meta.saldoInicialManual;
-  const prev=addM(m,-1);const pr=D[prev]||[];
-  if(!pr.length&&!D[prev+'_meta'])return 0;
-  const ps=getSI(prev,(d||0)+1);
-  if(mesFuturo(prev)){
-    return ps+pr.filter(r=>r.tipo==='in').reduce((s,r)=>s+r.valor,0)-pr.filter(r=>r.tipo==='out').reduce((s,r)=>s+r.valor,0);
-  }
-  return ps+pr.filter(r=>r.tipo==='in'&&r.status==='pago').reduce((s,r)=>s+r.valor,0)-pr.filter(r=>r.tipo==='out'&&r.status==='pago').reduce((s,r)=>s+r.valor,0);
+  // Se o usuário ajustou manualmente o saldo atual deste mês, esse é o saldo final
+  if(meta.saldoAtualManual!==undefined)return meta.saldoAtualManual;
+  // Caso contrário: saldo inicial do mês + movimentações
+  const si=getSI(m,(depth||0)+1);
+  const pr=rowsOf(m);
+  // Sempre considera todos os lançamentos (pago ou não) — fluxo de caixa completo
+  return si+pr.filter(r=>r.tipo==='in').reduce((s,r)=>s+r.valor,0)
+            -pr.filter(r=>r.tipo==='out').reduce((s,r)=>s+r.valor,0);
+}
+
+// Retorna todos os lançamentos de um mês (incluindo recorrentes injetados) sem alterar global
+function rowsOf(m){
+  const base=D[m]||[];
+  const deletadosIds=new Set(base.filter(x=>x._deletado).map(x=>x.id));
+  const result=base.filter(x=>!x._deletado);
+  const mesIds=new Set(result.map(x=>x.id));
+  Object.entries(D).forEach(([mk,arr])=>{
+    if(!Array.isArray(arr)||mk===m)return;
+    arr.filter(r=>r.recorrente&&!r._recClone&&!r._deletado).forEach(r=>{
+      const cloneId='rec_'+r.id+'_'+m;
+      if(deletadosIds.has(cloneId)||mesIds.has(cloneId)||result.find(x=>x.id===cloneId))return;
+      const dia=(r.venc||'').slice(8,10)||'01';
+      result.push({...r,id:cloneId,venc:m+'-'+dia,pag:null,status:'pendente',_recClone:r.id,obs:r.obs||''});
+    });
+  });
+  return result;
+}
+
+// Retorna o saldo INICIAL de um mês (= saldo final do mês anterior)
+function getSI(m,depth){
+  if((depth||0)>24)return 0;
+  const prev=addM(m,-1);
+  // Se não há nenhum dado no mês anterior, começa do zero
+  if(!D[prev]&&!D[prev+'_meta'])return 0;
+  return getSaldoFinal(prev,(depth||0)+1);
 }
 
 /* ── BUILD SEL ── */
@@ -521,9 +550,10 @@ function checkLayout(){
 }
 
 /* ── PROJECTED ── */
-function calcProj(all,si){
+// sAtual = saldo já realizado (inicial + pagos). Os pendentes são projetados em ordem de vencimento.
+function calcProj(all,sAtual){
   const unpaid=all.filter(r=>r.status!=='pago').sort((a,b)=>(a.venc||'').localeCompare(b.venc||''));
-  let run=si+all.filter(r=>r.tipo==='in'&&r.status==='pago').reduce((s,r)=>s+r.valor,0)-all.filter(r=>r.tipo==='out'&&r.status==='pago').reduce((s,r)=>s+r.valor,0);
+  let run=sAtual;
   const p={};unpaid.forEach(r=>{if(r.tipo==='in')run+=r.valor;else run-=r.valor;p[r.id]=run;});return p;
 }
 
@@ -548,14 +578,20 @@ function render(){
   const tOut=all.filter(r=>r.tipo==='out').reduce((s,r)=>s+r.valor,0);
   const pOut=all.filter(r=>r.tipo==='out'&&r.status==='pago').reduce((s,r)=>s+r.valor,0);
   const pIn=all.filter(r=>r.tipo==='in'&&r.status==='pago').reduce((s,r)=>s+r.valor,0);
-  const si=getSI(mes);const sAtual=si+pIn-pOut;const sFinal=si+tIn-tOut;
+  const si=getSI(mes);const metaM=D[mes+'_meta']||{};
+  const sAtualCalc=si+pIn-pOut;
+  const sAtual=metaM.saldoAtualManual!==undefined?metaM.saldoAtualManual:sAtualCalc;
+  // Saldo final = saldo atual + pendentes (projeção)
+  const pendIn=all.filter(r=>r.tipo==='in'&&r.status!=='pago').reduce((s,r)=>s+r.valor,0);
+  const pendOut=all.filter(r=>r.tipo==='out'&&r.status!=='pago').reduce((s,r)=>s+r.valor,0);
+  const sFinal=sAtual+pendIn-pendOut;
   const hasPend=all.some(r=>r.status!=='pago');
-  const metaM=!!(D[mes+'_meta']&&D[mes+'_meta'].saldoInicialManual!==undefined);
-  const proj=calcProj(all,si);
+  const hasMetaManual=metaM.saldoAtualManual!==undefined||metaM.saldoInicialManual!==undefined;
+  const proj=calcProj(all,sAtual);
   const minP=Object.values(proj).length?Math.min(...Object.values(proj)):sAtual;
-  const tagSI=metaM?'ajustado':mesFuturo(mes)?'projetado':'carry-forward';
-  const tagSIbg=metaM?'#f0fdf4':mesFuturo(mes)?'#fff8ee':'#f0f4ff';
-  const tagSIco=metaM?'var(--g)':mesFuturo(mes)?'#92400e':'#6b7280';
+  const tagSI=hasMetaManual?'ajustado':mesFuturo(mes)?'projetado':'carry-forward';
+  const tagSIbg=hasMetaManual?'#f0fdf4':mesFuturo(mes)?'#fff8ee':'#f0f4ff';
+  const tagSIco=hasMetaManual?'var(--g)':mesFuturo(mes)?'#92400e':'#6b7280';
   const tagFin=hasPend?'projetado':'realizado';
   const sbarEl=document.getElementById(isMob()?'sbar-m':'sbar');
 
@@ -851,11 +887,23 @@ function editSaldo(e){
   e.stopPropagation();const el=document.getElementById('svd');if(!el||el.querySelector('input'))return;
   const all=rows();const pOut=all.filter(r=>r.tipo==='out'&&r.status==='pago').reduce((s,r)=>s+r.valor,0);
   const pIn=all.filter(r=>r.tipo==='in'&&r.status==='pago').reduce((s,r)=>s+r.valor,0);
-  const cur=getSI(mes)+pIn-pOut;
+  const metaAtual=(D[mes+'_meta']||{});
+  const cur=metaAtual.saldoAtualManual!==undefined?metaAtual.saldoAtualManual:getSI(mes)+pIn-pOut;
   const inp=document.createElement('input');inp.type='number';inp.value=cur.toFixed(2);inp.step='0.01';
   inp.style.cssText='font-size:18px;font-weight:700;width:150px;border:2px solid var(--g);border-radius:6px;padding:2px 8px;outline:none;color:var(--t);background:var(--w);font-family:Inter,sans-serif';
   el.textContent='';el.appendChild(inp);inp.focus();inp.select();
-  const commit=()=>{const val=parseFloat(inp.value);if(!isNaN(val)){const diff=+(val-cur).toFixed(2);if(Math.abs(diff)>=0.01){D[mes]=(D[mes]||[]).filter(r=>!r._correcao);D[mes].push({id:uid(),tipo:diff>0?'in':'out',venc:today(),pag:today(),desc:'Correção de saldo',cat:'Outros',valor:Math.abs(diff),status:'pago',obs:'Saldo real: '+fv(val),parcelas:1,parcelaAtual:1,_correcao:true});saveData();toast('Correção de saldo: '+fv(val));}}render();renderSide();};
+  const commit=()=>{
+    const val=parseFloat(inp.value);
+    if(!isNaN(val)&&Math.abs(val-cur)>=0.01){
+      // Remove correções antigas, limpa manual antigo e salva saldo atual diretamente
+      D[mes]=(D[mes]||[]).filter(r=>!r._correcao);
+      if(!D[mes+'_meta'])D[mes+'_meta']={};
+      delete D[mes+'_meta'].saldoInicialManual; // limpa formato antigo
+      D[mes+'_meta'].saldoAtualManual=+val.toFixed(2);
+      saveData();toast('Saldo atualizado: '+fv(val));
+    }
+    render();renderSide();
+  };
   inp.addEventListener('blur',commit);inp.addEventListener('keydown',ev=>{if(ev.key==='Enter')inp.blur();if(ev.key==='Escape'){render();renderSide();}});inp.addEventListener('click',ev=>ev.stopPropagation());
 }
 
