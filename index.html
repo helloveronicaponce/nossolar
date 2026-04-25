@@ -942,9 +942,21 @@ function toggleStatus(e,id){
     });
     el.appendChild(d);
   });
+  // captura posição antes de qualquer mudança no DOM
+  const chipRect=e.currentTarget.getBoundingClientRect();
+  const clickY=e.clientY||chipRect.bottom;
+  const clickX=e.clientX||chipRect.left;
+  // insere fora da tela para medir
+  el.style.top='-9999px';el.style.left='-9999px';
   document.body.appendChild(el);dd=el;
-  const rect=e.currentTarget.getBoundingClientRect();
-  el.style.top=(rect.bottom+4+window.scrollY)+'px';el.style.left=Math.max(4,rect.left+window.scrollX-40)+'px';
+  // mede após reflow
+  const ddH=el.offsetHeight;
+  const ddW=el.offsetWidth;
+  // posiciona: abre abaixo do chip se couber, senão acima
+  const spaceBelow=window.innerHeight-chipRect.bottom-4;
+  const top=spaceBelow>=ddH?chipRect.bottom+4:Math.max(4,chipRect.top-ddH-4);
+  const left=Math.min(Math.max(4,clickX-20),window.innerWidth-ddW-8);
+  el.style.top=top+'px';el.style.left=left+'px';
   setTimeout(()=>document.addEventListener('click',function h(ev2){
     if(el.contains(ev2.target))return;
     closeDd();document.removeEventListener('click',h);
@@ -1216,7 +1228,7 @@ function toast(msg){const t=document.createElement('div');t.className='toast';t.
 /* ── TABLE DELEGATION (registrada 1x) ── */
 function tbDelegate(ev){
   const chip=ev.target.closest('.chip');
-  if(chip){ev.stopPropagation();toggleStatus({stopPropagation:()=>{},currentTarget:chip},chip.dataset.id);return;}
+  if(chip){ev.stopPropagation();toggleStatus({stopPropagation:()=>{},currentTarget:chip,clientX:ev.clientX,clientY:ev.clientY},chip.dataset.id);return;}
   const ddEl=ev.target.closest('.dd');
   if(ddEl){ev.stopPropagation();editDate({stopPropagation:()=>{},currentTarget:ddEl},ddEl.dataset.id);return;}
   const vd=ev.target.closest('.vd');
