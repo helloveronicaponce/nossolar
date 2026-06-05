@@ -2984,8 +2984,9 @@ function renderGraficoConsumoMensal(){
   
 
   const faturas=D._faturasRaw||[];
+  console.log('📈 Renderizando gráfico com faturas:',faturas.length);
   if(faturas.length===0){
-    
+
     graficoEl.innerHTML='<div style="color:var(--t3);padding:2rem;text-align:center"><div>❌ Sem dados de faturas</div><div style="font-size:11px;margin-top:.5rem">Verifique os dados no Supabase</div></div>';
     return;
   }
@@ -2993,20 +2994,20 @@ function renderGraficoConsumoMensal(){
   // Agrupar por mês e calcular total
   const gastosPorMes={};
   faturas.forEach(f=>{
-    
+
     const mes=f.mes_ref;
     if(!mes){
-      
+
       return;
     }
     if(!gastosPorMes[mes])gastosPorMes[mes]=0;
     gastosPorMes[mes]+=(f.fatura_total||0);
   });
 
-  
+  console.log('💰 Gastos por mês:',gastosPorMes);
 
-  // Ordenar meses
-  const meses=Object.keys(gastosPorMes).sort();
+  // Ordenar meses CRONOLOGICAMENTE (não alfabético!)
+  const meses=Object.keys(gastosPorMes).sort((a,b)=>a.localeCompare(b));
   if(meses.length===0){
     graficoEl.innerHTML='<div style="color:var(--t3)">Sem dados</div>';
     return;
