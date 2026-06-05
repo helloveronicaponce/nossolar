@@ -4152,19 +4152,23 @@ async function init(){
         const headerEl=document.getElementById('lanc-header-mes');
         if(headerEl)headerEl.textContent=MN[+mes.slice(5)-1];
       } else {
-        // Desktop: renderizar abas
-        
+        // Desktop: renderizar novo dashboard por padrão
+
+        // Mostrar novo dashboard por padrão
+        dashboardMode = true;
+        document.getElementById('dashboard-container').style.display = 'block';
+        document.getElementById('desktop-tabs').style.display = 'none';
+        document.querySelectorAll('.page-container').forEach(p => p.style.display = 'none');
+
+        // Mas manter dados das abas carregados em background
         render();
         renderSide();
         renderSideGeral();
 
-        // Checar hash e renderizar página apropriada
+        // Checar hash e renderizar página apropriada (se usuário alternar para abas)
         const hash=window.location.hash.slice(1)||'lancamentos';
         const validPages=['lancamentos','cartoes','visao-geral'];
         const pageToLoad=validPages.includes(hash)?hash:'lancamentos';
-
-        
-        await switchPage(pageToLoad);
 
         // Listener para mudanças de hash
         window.addEventListener('hashchange',()=>{
