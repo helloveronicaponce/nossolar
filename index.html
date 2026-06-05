@@ -1225,14 +1225,14 @@ function renderSideGeral(){
     +'</div>'
     +'<div class="card"><div class="sh"><div class="si2" style="background:#f3e5f5">🚗</div><div class="st">Spin — Porto Seguro</div></div>'
     +'<div style="font-size:13px;color:var(--t2)">Parcelas quitadas</div>'
-    +'<div style="font-size:22px;font-weight:700;margin:4px 0 2px">36 <span style="font-size:14px;font-weight:400;color:var(--t3)">de 48</span></div>'
-    +'<div class="pb2"><div class="pf" style="width:75%;background:#9c27b0"></div></div>'
-    +'<div class="ins"><div class="in2"><div class="l">Parcelas abertas</div><div class="v">12</div></div><div class="in2"><div class="l">Saldo restante</div><div class="v" style="color:var(--r)">'+fv((D._meta||{}).saldoSpin||0)+'</div></div><div class="in2"><div class="l">Parcela mensal</div><div class="v">'+fv((D._meta||{}).parcelaSpinMensal||0)+'</div></div><div class="in2"><div class="l">Quitação</div><div class="v" style="font-size:12px">${(D._meta||{}).quitacaoSpin||'—'}</div></div></div></div>'
+    +'<div style="font-size:22px;font-weight:700;margin:4px 0 2px">'+(D._meta||{}).spinParcelasPagas||'36'+' <span style="font-size:14px;font-weight:400;color:var(--t3)">de '+(D._meta||{}).spinParcelasTotal||'48'+'</span></div>'
+    +'<div class="pb2"><div class="pf" style="width:'+(((D._meta||{}).spinParcelasPagas||36)/((D._meta||{}).spinParcelasTotal||48)*100)+'%;background:#9c27b0"></div></div>'
+    +'<div class="ins"><div class="in2"><div class="l">Parcelas abertas</div><div class="v">'+(((D._meta||{}).spinParcelasTotal||48)-((D._meta||{}).spinParcelasPagas||36))+'</div></div><div class="in2"><div class="l">Saldo restante</div><div class="v" style="color:var(--r)">'+fv((D._meta||{}).saldoSpin||0)+'</div></div><div class="in2"><div class="l">Parcela mensal</div><div class="v">'+fv((D._meta||{}).parcelaSpinMensal||0)+'</div></div><div class="in2"><div class="l">Quitação</div><div class="v" style="font-size:12px">'+(D._meta||{}).quitacaoSpin||'—'+'</div></div></div></div>'
     +'<div class="card"><div class="sh"><div class="si2" style="background:#e8f5e9">🏡</div><div class="st">Imóvel</div></div>'
     +'<div style="font-size:13px;color:var(--t2)">Parcelas quitadas</div>'
-    +'<div style="font-size:22px;font-weight:700;margin:4px 0 2px">4 <span style="font-size:14px;font-weight:400;color:var(--t3)">de 163</span></div>'
-    +'<div class="pb2"><div class="pf" style="width:2.4%;background:var(--g)"></div></div>'
-    +'<div class="ins"><div class="in2"><div class="l">Valor total</div><div class="v">${fv((D._meta||{}).valorImovel||0)}</div></div><div class="in2"><div class="l">Saldo restante</div><div class="v">${fv((D._meta||{}).saldoImovel||0)}</div></div><div class="in2"><div class="l">Parcela mensal</div><div class="v">${fv((D._meta||{}).parcelaImovelMensal||0)}</div></div><div class="in2"><div class="l">Pago total</div><div class="v" style="color:var(--g)">${fv((D._meta||{}).pagotoImovel||0)}</div></div></div></div>';
+    +'<div style="font-size:22px;font-weight:700;margin:4px 0 2px">'+(D._meta||{}).imovelParcelasPagas||'4'+' <span style="font-size:14px;font-weight:400;color:var(--t3)">de '+(D._meta||{}).imovelParcelasTotal||'163'+'</span></div>'
+    +'<div class="pb2"><div class="pf" style="width:'+(((D._meta||{}).imovelParcelasPagas||4)/((D._meta||{}).imovelParcelasTotal||163)*100)+'%;background:var(--g)"></div></div>'
+    +'<div class="ins"><div class="in2"><div class="l">Valor total</div><div class="v">'+fv((D._meta||{}).valorImovel||0)+'</div></div><div class="in2"><div class="l">Saldo restante</div><div class="v">'+fv((D._meta||{}).saldoImovel||0)+'</div></div><div class="in2"><div class="l">Parcela mensal</div><div class="v">'+fv((D._meta||{}).parcelaImovelMensal||0)+'</div></div><div class="in2"><div class="l">Pago total</div><div class="v" style="color:var(--g)">'+fv((D._meta||{}).pagotoImovel||0)+'</div></div></div></div>';
 }
 
 function buildCardItem(c,showPayBtn,compact){
@@ -2425,11 +2425,11 @@ function renderLancamentosDesktop(){
       </div>
       <div style="border-top:1px solid var(--b);padding-top:.75rem;display:flex;justify-content:space-between;align-items:center">
         <span style="color:var(--t3)">Pendentes</span>
-        <span style="font-weight:700;color:var(--a)">${fv(pendentes)}</span>
+        <span style="font-weight:700;color:var(--a)">${fv(pendOut)}</span>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span style="color:var(--t3)">A Receber</span>
-        <span style="font-weight:700;color:var(--g)">${fv(aReceber)}</span>
+        <span style="font-weight:700;color:var(--g)">${fv(pendIn)}</span>
       </div>
     </div>
   </div>`;
@@ -3295,7 +3295,7 @@ function showCartaoDetalhes(cartaoOrEvent){
             <div style="font-size:12px;color:var(--t3)">ID: ${cartaoId}</div>
           </div>
         </div>
-        <button style="border:none;background:none;font-size:20px;cursor:pointer;color:var(--t3)">✕</button>
+        <button onclick="this.closest('[style*=position:fixed]').remove()" style="border:none;background:none;font-size:20px;cursor:pointer;color:var(--t3)">✕</button>
       </div>
 
       <div style="margin-bottom:1.5rem;padding:1rem;background:var(--bg);border-radius:8px">
@@ -3357,7 +3357,7 @@ function showEditCartaoModal(cartaoIdOrObj){
   content.innerHTML=`
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
         <h2 style="font-size:18px;font-weight:700;color:var(--t)">Editar ${cartao.emoji||'💳'} ${cartao.nome}</h2>
-        <button style="border:none;background:none;font-size:20px;cursor:pointer;color:var(--t3)">✕</button>
+        <button onclick="this.closest('[style*=position:fixed]').remove()" style="border:none;background:none;font-size:20px;cursor:pointer;color:var(--t3)">✕</button>
       </div>
 
       <div style="display:flex;flex-direction:column;gap:1.2rem;margin-bottom:1.5rem">
@@ -3395,7 +3395,7 @@ function showEditCartaoModal(cartaoIdOrObj){
   saveBtn.onclick=async()=>{
     // Aguardar salvamento antes de fechar modal
     const sucesso=await salvarEdicaoCartao(
-      '${cartao.id}',
+      cartao.id,
       content.querySelector('#input-limite').value,
       content.querySelector('#input-fechamento').value,
       content.querySelector('#input-vencimento').value
