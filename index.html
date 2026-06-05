@@ -459,7 +459,8 @@ button,a,[role="button"]{min-width:44px;min-height:44px;display:inline-flex;alig
 <!-- DESKTOP TABS NAV -->
 <div class="desktop-tabs visible" id="desktop-tabs" role="tablist" aria-label="Navegação principal" style="display:none">
   <button class="desktop-tab active" data-page="lancamentos" data-tooltip="Visualizar e gerenciar lançamentos" onclick="(async()=>await switchPage('lancamentos'))()" role="tab" aria-selected="true" aria-controls="page-lancamentos" id="tab-lancamentos">📝 Lançamentos</button>
-  <button class="desktop-tab" data-page="cartoes" data-tooltip="Consultar saldos e limites dos cartões" onclick="(async()=>await switchPage('cartoes'))()" role="tab" aria-selected="false" aria-controls="page-cartoes" id="tab-cartoes">💳 Cartões</button>
+  <button class="desktop-tab" data-page="cartoes-credito" data-tooltip="Análise detalhada de cartões de crédito" onclick="(async()=>await switchPage('cartoes-credito'))()" role="tab" aria-selected="false" aria-controls="page-cartoes-credito" id="tab-cartoes-credito">💳 Cartões de Crédito</button>
+  <button class="desktop-tab" data-page="cartoes" data-tooltip="Consultar saldos e limites dos cartões" onclick="(async()=>await switchPage('cartoes'))()" role="tab" aria-selected="false" aria-controls="page-cartoes" id="tab-cartoes">📋 Faturas</button>
   <button class="desktop-tab" data-page="visao-geral" data-tooltip="Ver gráficos e resumo financeiro" onclick="(async()=>await switchPage('visao-geral'))()" role="tab" aria-selected="false" aria-controls="page-visao-geral" id="tab-visao-geral">📊 Visão Geral</button>
 </div>
 
@@ -467,11 +468,15 @@ button,a,[role="button"]{min-width:44px;min-height:44px;display:inline-flex;alig
 <div class="page-container active" id="page-lancamentos" role="tabpanel" aria-labelledby="tab-lancamentos"></div>
 <!-- FIM LANÇAMENTOS -->
 
-<!-- PÁGINA 2: CARTÕES -->
-<div class="page-container" id="page-cartoes" role="tabpanel" aria-labelledby="tab-cartoes"></div>
-<!-- FIM CARTÕES -->
+<!-- PÁGINA 2: CARTÕES DE CRÉDITO (NOVO) -->
+<div class="page-container" id="page-cartoes-credito" role="tabpanel" aria-labelledby="tab-cartoes-credito"></div>
+<!-- FIM CARTÕES DE CRÉDITO -->
 
-<!-- PÁGINA 3: VISÃO GERAL -->
+<!-- PÁGINA 3: FATURAS -->
+<div class="page-container" id="page-cartoes" role="tabpanel" aria-labelledby="tab-cartoes"></div>
+<!-- FIM FATURAS -->
+
+<!-- PÁGINA 4: VISÃO GERAL -->
 <div class="page-container" id="page-visao-geral" role="tabpanel" aria-labelledby="tab-visao-geral"></div>
 <!-- FIM VISÃO GERAL -->
 
@@ -2365,15 +2370,17 @@ async function switchPage(page){
     try{
       if(page==='lancamentos'){
         renderLancamentosDesktop();
+      } else if(page==='cartoes-credito'){
+        await renderCartoesCredito();
       } else if(page==='cartoes'){
         await renderCartoesDesktopNovo();
         checkCartaoAlerts();
       } else if(page==='visao-geral'){
         renderVisaoGeralDesktopNovo();
       }
-      
+
     } catch(e){
-      
+
       pageEl.innerHTML='<div class="card" style="padding:2rem;text-align:center;color:var(--r)">Erro ao carregar página</div>';
     }
   }
@@ -2732,6 +2739,308 @@ async function projetarParcelasFuturas(faturas){
 // Função removida: gerarFaturasExemplo()
 // Agora apenas dados REAIS do Supabase são utilizados
 // Para popular o Supabase, use o SQL fornecido no guia
+
+/* ── NOVA ABA: CARTÕES DE CRÉDITO COM DATAVIZ ── */
+async function renderCartoesCredito(){
+  const container=document.getElementById('page-cartoes-credito');
+  if(!container)return;
+
+  container.innerHTML='<div class="card" style="text-align:center;padding:3rem;color:var(--t3)">⏳ Carregando análise de cartões...</div>';
+
+  await fetchFaturasFromSupabase();
+
+  if(!D._faturas||!D._limites||!D._faturasRaw){
+    D._faturas=D._faturas||{};
+    D._limites=D._limites||{};
+    D._faturasRaw=D._faturasRaw||[];
+  }
+
+  container.innerHTML='';
+
+  const cartoes=getCartoes();
+  if(!cartoes||cartoes.length===0){
+    container.innerHTML='<div class="card" style="text-align:center;padding:3rem;color:var(--t3)"><div style="font-size:48px;margin-bottom:1rem">💳</div><div style="font-weight:600;font-size:16px;margin-bottom:.5rem;color:var(--t)">Nenhum cartão configurado</div></div>';
+    return;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // SEÇÃO 1: RESUMO DOS CARTÕES (TOP CARDS)
+  // ═══════════════════════════════════════════════════════════
+  const mesAtualFaturas=(D._faturas||{})[mes]||{};
+  const totalUtilizado=Object.values(mesAtualFaturas).reduce((s,v)=>s+(v||0),0);
+  const limiteTotalCartoes=cartoes.reduce((s,c)=>s+getLimiteCartao(c.id),0);
+  const disponvelTotal=Math.max(0,limiteTotalCartoes-totalUtilizado);
+  const percentualUtilizacao=limiteTotalCartoes>0?(totalUtilizado/limiteTotalCartoes*100):0;
+
+  const resumoSection=document.createElement('div');
+  resumoSection.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-bottom:2rem';
+  resumoSection.innerHTML=`
+    <div class="card" style="border-left:4px solid var(--a)">
+      <div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;margin-bottom:1rem;letter-spacing:.05em">💳 Total em Cartões</div>
+      <div style="font-size:28px;font-weight:700;color:var(--r);margin-bottom:.5rem">${fv(totalUtilizado)}</div>
+      <div style="font-size:12px;color:var(--t3)">de ${fv(limiteTotalCartoes)}</div>
+    </div>
+    <div class="card" style="border-left:4px solid var(--g)">
+      <div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;margin-bottom:1rem;letter-spacing:.05em">✅ Limite Disponível</div>
+      <div style="font-size:28px;font-weight:700;color:var(--g);margin-bottom:.5rem">${fv(disponvelTotal)}</div>
+      <div style="font-size:12px;color:var(--t3)">${percentualUtilizacao.toFixed(1)}% utilizado</div>
+    </div>
+    <div class="card" style="border-left:4px solid var(--t3)">
+      <div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;margin-bottom:1rem;letter-spacing:.05em">📊 Cartões Ativos</div>
+      <div style="font-size:28px;font-weight:700;color:var(--t);margin-bottom:.5rem">${cartoes.filter(c=>(mesAtualFaturas[c.id]||0)>0).length}</div>
+      <div style="font-size:12px;color:var(--t3)">de ${cartoes.length}</div>
+    </div>
+  `;
+  container.appendChild(resumoSection);
+
+  // ═══════════════════════════════════════════════════════════
+  // SEÇÃO 2: GRÁFICOS (2 COLUNAS)
+  // ═══════════════════════════════════════════════════════════
+  const chartsSection=document.createElement('div');
+  chartsSection.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:1.5rem;margin-bottom:2rem';
+
+  // Gráfico 1: Distribuição por Cartão (Pie Chart)
+  const pieChartCard=document.createElement('div');
+  pieChartCard.className='card';
+  pieChartCard.innerHTML=`
+    <h3 style="font-size:15px;font-weight:700;margin-bottom:1.5rem;color:var(--t)">📈 Distribuição de Gastos</h3>
+    <div id="chart-pie" style="height:280px;display:flex;align-items:center;justify-content:center;background:var(--bg);border-radius:8px;color:var(--t3)">Gerando gráfico...</div>
+  `;
+  chartsSection.appendChild(pieChartCard);
+
+  // Gráfico 2: Evolução Mensal
+  const lineChartCard=document.createElement('div');
+  lineChartCard.className='card';
+  lineChartCard.innerHTML=`
+    <h3 style="font-size:15px;font-weight:700;margin-bottom:1.5rem;color:var(--t)">📊 Evolução Mensal</h3>
+    <div id="chart-line" style="height:280px;display:flex;align-items:center;justify-content:center;background:var(--bg);border-radius:8px;color:var(--t3)">Gerando gráfico...</div>
+  `;
+  chartsSection.appendChild(lineChartCard);
+
+  container.appendChild(chartsSection);
+
+  // ═══════════════════════════════════════════════════════════
+  // SEÇÃO 3: CARDS DETALHADOS DE CADA CARTÃO
+  // ═══════════════════════════════════════════════════════════
+  const detalhesSection=document.createElement('div');
+  detalhesSection.style.cssText='display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1rem;margin-bottom:2rem';
+
+  cartoes.forEach(cartao=>{
+    const faturaMes=mesAtualFaturas[cartao.id]||0;
+    const limite=getLimiteCartao(cartao.id);
+    const disponivel=Math.max(0,limite-faturaMes);
+    const percentual=limite>0?(faturaMes/limite*100):0;
+    const corBg=cartao.cor||'var(--g)';
+
+    const faturasCartao=(D._faturasRaw||[]).filter(f=>f.cartao===cartao.id);
+    const statusRecente=faturasCartao[0]?.status||'sem dados';
+
+    const cardEl=document.createElement('div');
+    cardEl.className='card';
+    cardEl.style.cssText=`border-left:4px solid ${corBg};`;
+    cardEl.innerHTML=`
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem">
+        <div style="font-size:24px">${cartao.emoji||'💳'}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:14px;color:var(--t)">${cartao.nome}</div>
+          <div style="font-size:11px;color:var(--t3)">Venc: ${cartao.vencimento}º</div>
+        </div>
+        <div style="font-size:11px;font-weight:600;padding:.3rem .6rem;background:${statusRecente==='pago'?'#dcfce7':statusRecente==='pendente'?'#fef9c3':'#e5e7eb'};color:${statusRecente==='pago'?'#166534':statusRecente==='pendente'?'#854d0e':'#374151'};border-radius:4px;text-transform:uppercase">${statusRecente}</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1rem;padding:.75rem;background:var(--bg);border-radius:8px">
+        <div>
+          <div style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Utilizado</div>
+          <div style="font-size:16px;font-weight:700;color:var(--r)">${fv(faturaMes)}</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Disponível</div>
+          <div style="font-size:16px;font-weight:700;color:var(--g)">${fv(disponivel)}</div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:1rem">
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px">
+          <div style="color:var(--t2);font-weight:600">Limite: ${fv(limite)}</div>
+          <div style="color:var(--t3);font-weight:600">${percentual.toFixed(0)}%</div>
+        </div>
+        <div style="height:6px;background:var(--b);border-radius:99px;overflow:hidden">
+          <div style="height:100%;width:${Math.min(percentual,100)}%;background:${corBg};border-radius:99px;transition:width .3s"></div>
+        </div>
+      </div>
+
+      <div style="font-size:12px;color:var(--t2);padding:.75rem;background:var(--bg);border-radius:6px;text-align:center">
+        ${faturasCartao.length} fatura${faturasCartao.length!==1?'s':''} registrada${faturasCartao.length!==1?'s':''}
+      </div>
+    `;
+    detalhesSection.appendChild(cardEl);
+  });
+
+  container.appendChild(detalhesSection);
+
+  // ═══════════════════════════════════════════════════════════
+  // SEÇÃO 4: TABELA DE FATURAS RECENTES
+  // ═══════════════════════════════════════════════════════════
+  const tabelaSection=document.createElement('div');
+  tabelaSection.className='card';
+  tabelaSection.innerHTML=`
+    <h3 style="font-size:15px;font-weight:700;margin-bottom:1.5rem;color:var(--t)">📋 Faturas Recentes</h3>
+    <div id="tabela-faturas" style="overflow-x:auto;border-radius:8px;border:1px solid var(--b)"></div>
+  `;
+  container.appendChild(tabelaSection);
+
+  // Renderizar gráficos após inserir DOM
+  setTimeout(()=>{
+    renderChartsCartoesCredito(cartoes);
+  },100);
+}
+
+function renderChartsCartoesCredito(cartoes){
+  // ═══════════════════════════════════════════════════════════
+  // GRÁFICO PIE: Distribuição de Gastos
+  // ═══════════════════════════════════════════════════════════
+  const mesAtualFaturas=(D._faturas||{})[mes]||{};
+  const dadosPie=cartoes
+    .map(c=>({nome:c.nome,valor:mesAtualFaturas[c.id]||0,emoji:c.emoji,cor:c.cor}))
+    .filter(d=>d.valor>0)
+    .sort((a,b)=>b.valor-a.valor);
+
+  if(dadosPie.length>0){
+    const total=dadosPie.reduce((s,d)=>s+d.valor,0);
+    const chartPie=document.getElementById('chart-pie');
+    let svg=`<svg width="100%" height="100%" viewBox="0 0 300 280" style="max-width:300px">`;
+
+    let cumulative=0;
+    const raioExterno=80;
+    const raioInterno=40;
+
+    dadosPie.forEach((item,idx)=>{
+      const porcentagem=item.valor/total;
+      const angulo=porcentagem*360;
+      const inicio=cumulative;
+      const fim=cumulative+angulo;
+
+      const startX=150+raioExterno*Math.cos((inicio-90)*Math.PI/180);
+      const startY=140+raioExterno*Math.sin((inicio-90)*Math.PI/180);
+      const endX=150+raioExterno*Math.cos((fim-90)*Math.PI/180);
+      const endY=140+raioExterno*Math.sin((fim-90)*Math.PI/180);
+
+      const largoArco=angulo>180?1:0;
+
+      const path=`M 150 140 L ${startX} ${startY} A ${raioExterno} ${raioExterno} 0 ${largoArco} 1 ${endX} ${endY} Z`;
+      svg+=`<path d="${path}" fill="${item.cor||'var(--g)'}" opacity="0.85" stroke="var(--w)" stroke-width="2"/>`;
+
+      cumulative=fim;
+    });
+
+    svg+=`</svg><div style="margin-top:1rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.75rem">`;
+    dadosPie.forEach(item=>{
+      const porcentagem=((item.valor/total)*100).toFixed(1);
+      svg+=`<div style="font-size:12px;padding:.5rem;background:var(--bg);border-radius:6px;border-left:3px solid ${item.cor||'var(--g)'}"><div style="font-weight:600;color:var(--t)">${item.emoji} ${item.nome}</div><div style="color:var(--t3);margin-top:2px">${fv(item.valor)} (${porcentagem}%)</div></div>`;
+    });
+    svg+=`</div>`;
+
+    chartPie.innerHTML=svg;
+  }else{
+    document.getElementById('chart-pie').innerHTML='<div style="color:var(--t3);text-align:center">Sem dados para este período</div>';
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // GRÁFICO LINE: Evolução Mensal
+  // ═══════════════════════════════════════════════════════════
+  const mesesDisponiveis=Object.keys(D._faturas||{}).sort().slice(-12);
+  if(mesesDisponiveis.length>0){
+    const chartLine=document.getElementById('chart-line');
+    const dadosLinha=mesesDisponiveis.map(m=>{
+      const total=Object.values((D._faturas||{})[m]||{}).reduce((s,v)=>s+(v||0),0);
+      return {mes:m,total};
+    });
+
+    const maxValor=Math.max(...dadosLinha.map(d=>d.total),1);
+    const W=chartLine.parentElement.offsetWidth-30;
+    const H=250;
+    const padding=30;
+    const chartW=W-padding*2;
+    const chartH=H-padding*2;
+
+    let svg=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="width:100%;height:100%">`;
+    svg+=`<defs><linearGradient id="gradLine" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:var(--g);stop-opacity:0.3"/><stop offset="100%" style="stop-color:var(--g);stop-opacity:0.05"/></linearGradient></defs>`;
+
+    // Desenhar pontos e linha
+    let pathData=`M`;
+    dadosLinha.forEach((d,idx)=>{
+      const x=padding+idx*(chartW/Math.max(dadosLinha.length-1,1));
+      const y=padding+chartH-((d.total/maxValor)*chartH);
+      if(idx===0)pathData=`M ${x} ${y}`;
+      else pathData+=` L ${x} ${y}`;
+    });
+
+    if(dadosLinha.length>1){
+      svg+=`<path d="${pathData}" stroke="var(--g)" stroke-width="2" fill="none"/>`;
+
+      // Preencher área
+      let areaPath=pathData+` L ${padding+chartW} ${padding+chartH} L ${padding} ${padding+chartH} Z`;
+      svg+=`<path d="${areaPath}" fill="url(#gradLine)"/>`;
+    }
+
+    // Desenhar pontos
+    dadosLinha.forEach((d,idx)=>{
+      const x=padding+idx*(chartW/Math.max(dadosLinha.length-1,1));
+      const y=padding+chartH-((d.total/maxValor)*chartH);
+      svg+=`<circle cx="${x}" cy="${y}" r="4" fill="var(--g)" opacity="0.8"/>`;
+
+      // Label do mês
+      const mesLabel=d.mes.split('-')[1];
+      svg+=`<text x="${x}" y="${H-10}" text-anchor="middle" font-size="11" fill="var(--t3)">${mesLabel}</text>`;
+    });
+
+    svg+=`</svg>`;
+    chartLine.innerHTML=svg;
+  }else{
+    document.getElementById('chart-line').innerHTML='<div style="color:var(--t3);text-align:center">Sem histórico de dados</div>';
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // TABELA: Faturas Recentes
+  // ═══════════════════════════════════════════════════════════
+  const faturasRecentes=(D._faturasRaw||[])
+    .sort((a,b)=>new Date(b.mes_ref)-new Date(a.mes_ref))
+    .slice(0,20);
+
+  if(faturasRecentes.length>0){
+    let html=`<table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="background:var(--bg);border-bottom:2px solid var(--b2)">
+          <th style="padding:.75rem;text-align:left;font-weight:700;color:var(--t2);text-transform:uppercase;font-size:11px">Cartão</th>
+          <th style="padding:.75rem;text-align:left;font-weight:700;color:var(--t2);text-transform:uppercase;font-size:11px">Período</th>
+          <th style="padding:.75rem;text-align:right;font-weight:700;color:var(--t2);text-transform:uppercase;font-size:11px">Fatura</th>
+          <th style="padding:.75rem;text-align:center;font-weight:700;color:var(--t2);text-transform:uppercase;font-size:11px">Status</th>
+          <th style="padding:.75rem;text-align:center;font-weight:700;color:var(--t2);text-transform:uppercase;font-size:11px">Vencimento</th>
+        </tr>
+      </thead>
+      <tbody>
+    `;
+
+    faturasRecentes.forEach(f=>{
+      const cartao=cartoes.find(c=>c.id===f.cartao);
+      const statusColor=f.status==='pago'?'#166534':f.status==='pendente'?'#854d0e':f.status==='atrasado'?'#991b1b':'#6b7280';
+      const statusBg=f.status==='pago'?'#dcfce7':f.status==='pendente'?'#fef9c3':f.status==='atrasado'?'#fee2e2':'#f3f4f6';
+
+      html+=`<tr style="border-bottom:1px solid var(--b);transition:all .2s;background:transparent">
+        <td style="padding:.75rem;font-weight:600;color:var(--t)">${cartao?cartao.emoji+' '+cartao.nome:'Desconhecido'}</td>
+        <td style="padding:.75rem;color:var(--t2)">${f.mes_ref||'—'}</td>
+        <td style="padding:.75rem;text-align:right;color:var(--r);font-weight:600">${fv(f.fatura_total||0)}</td>
+        <td style="padding:.75rem;text-align:center"><span style="padding:.25rem .6rem;background:${statusBg};color:${statusColor};border-radius:4px;font-weight:600;font-size:10px;text-transform:uppercase">${f.status||'—'}</span></td>
+        <td style="padding:.75rem;text-align:center;color:var(--t3)">${f.data_vencimento?fd(f.data_vencimento):'—'}</td>
+      </tr>`;
+    });
+
+    html+=`</tbody></table>`;
+    document.getElementById('tabela-faturas').innerHTML=html;
+  }else{
+    document.getElementById('tabela-faturas').innerHTML='<div style="padding:2rem;text-align:center;color:var(--t3)">Nenhuma fatura registrada</div>';
+  }
+}
 
 async function renderCartoesDesktopNovo(){
   const container=document.getElementById('page-cartoes');
