@@ -674,7 +674,10 @@ const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJl
 let _sb=null,_session=null;
 function getSB(){if(!_sb){const s=window.supabase||(typeof supabase!=='undefined'?supabase:null);if(s)_sb=s.createClient(SB_URL2,SB_ANON,{auth:{detectSessionInUrl:true,persistSession:true,autoRefreshToken:true}});}return _sb;}
 async function getAuthHeader(){const sb=getSB();if(!sb)return{};const{data}=await sb.auth.getSession();const t=data?.session?.access_token;return t?{'Authorization':'Bearer '+t}:{};}
-async function checkAuth(){const sb=getSB();if(!sb){showApp();return;}const{data:{session}}=await sb.auth.getSession();if(session){_session=session;if(window.location.hash.includes('access_token'))window.history.replaceState(null,'',window.location.pathname);showApp();}else{showLogin();}}
+async function checkAuth(){
+  // Autenticação desativada - acesso direto ao app
+  showApp();
+}
 function showLogin(){document.getElementById('login-screen').style.display='flex';document.getElementById('app-root').style.display='none';setTimeout(()=>document.getElementById('login-email')?.focus(),200);}
 function showApp(){document.getElementById('login-screen').style.display='none';document.getElementById('app-root').style.display='block';}
 async function sendMagicLink(){const eEl=document.getElementById('login-email');const btn=document.getElementById('login-btn');const err=document.getElementById('login-err');const email=eEl?.value.trim();if(!email){showLE('Digite seu e-mail');return;}if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){showLE('E-mail inválido');return;}btn.textContent='Enviando…';btn.style.opacity='.7';btn.disabled=true;err.style.display='none';const sb=getSB();const redir=window.location.origin+window.location.pathname;const{error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:redir}});if(error){btn.textContent='Enviar link de acesso ✉️';btn.style.opacity='1';btn.disabled=false;showLE(error.message);return;}document.getElementById('login-step-email').style.display='none';document.getElementById('login-sent-email').innerHTML='Enviamos um link para <strong>'+email+'</strong><br>Abra o e-mail e clique no link para entrar.';document.getElementById('login-step-sent').style.display='flex';}
@@ -2312,37 +2315,8 @@ function checkCartaoAlerts(){
   });
 }
 
-/* ── ONBOARDING ── */
-function showOnboarding(){
-  const overlay=document.createElement('div');
-  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;display:flex;align-items:center;justify-content:center;animation:fadeIn .3s';
-  const card=document.createElement('div');
-  card.style.cssText='background:var(--w);border-radius:16px;padding:2.5rem;width:500px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.3);animation:slideDown .3s cubic-bezier(.4,0,.2,1)';
-  card.innerHTML=`
-    <div style="text-align:center;margin-bottom:1.5rem">
-      <div style="font-size:48px;margin-bottom:.75rem">👋</div>
-      <h1 style="font-size:24px;font-weight:700;margin-bottom:.5rem;color:var(--t)">Bem-vindo ao Nosso Lar!</h1>
-      <p style="color:var(--t2);margin:0">Seu painel financeiro familiar</p>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:1rem;margin:1.5rem 0">
-      <div style="display:flex;align-items:flex-start;gap:1rem">
-        <div style="font-size:32px;flex-shrink:0">📝</div>
-        <div><strong style="color:var(--t)">Lançamentos</strong><p style="color:var(--t3);margin:4px 0 0;font-size:13px">Registre entradas e saídas de dinheiro</p></div>
-      </div>
-      <div style="display:flex;align-items:flex-start;gap:1rem">
-        <div style="font-size:32px;flex-shrink:0">💳</div>
-        <div><strong style="color:var(--t)">Cartões</strong><p style="color:var(--t3);margin:4px 0 0;font-size:13px">Monitore saldos e limites dos seus cartões</p></div>
-      </div>
-      <div style="display:flex;align-items:flex-start;gap:1rem">
-        <div style="font-size:32px;flex-shrink:0">📊</div>
-        <div><strong style="color:var(--t)">Visão Geral</strong><p style="color:var(--t3);margin:4px 0 0;font-size:13px">Visualize gráficos e resumo financeiro</p></div>
-      </div>
-    </div>
-    <button onclick="this.closest('div').parentNode.parentNode.remove();sessionStorage.setItem('onboarding-shown',1)" style="width:100%;padding:.75rem 1.5rem;background:var(--g);color:#fff;border:none;border-radius:10px;font-weight:600;font-size:14px;cursor:pointer;transition:all .2s;margin-top:1.5rem">Entendi, vamos lá!</button>
-  `;
-  overlay.appendChild(card);
-  document.body.appendChild(overlay);
-}
+// Onboarding removido - acesso direto
+function showOnboarding(){}
 
 /* ── DESKTOP PAGE NAVIGATION ── */
 async function switchPage(page){
@@ -4517,10 +4491,7 @@ async function init(){
           }
         });
 
-        // Mostrar onboarding se primeira vez
-        if(!sessionStorage.getItem('onboarding-shown')){
-          setTimeout(showOnboarding,500);
-        }
+        // Onboarding desativado - acesso direto
       }
     }
     catch(e){}
