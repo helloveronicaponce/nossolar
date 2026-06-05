@@ -3282,7 +3282,9 @@ function showCartaoDetalhes(cartaoOrEvent){
 
   const modal=document.createElement('div');
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:5000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)';
-  modal.onclick=(ev)=>{if(ev.target===modal)modal.remove();};
+
+  const closeModal=()=>{modal.remove();};
+  modal.onclick=(ev)=>{if(ev.target===modal)closeModal();};
 
   const content=document.createElement('div');
   content.style.cssText='background:var(--w);border-radius:14px;padding:2rem;width:700px;max-width:90vw;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);border:1px solid var(--b)';
@@ -3295,7 +3297,7 @@ function showCartaoDetalhes(cartaoOrEvent){
             <div style="font-size:12px;color:var(--t3)">ID: ${cartaoId}</div>
           </div>
         </div>
-        <button onclick="this.closest('[style*=position:fixed]').remove()" style="border:none;background:none;font-size:20px;cursor:pointer;color:var(--t3)">✕</button>
+        <button id="detail-modal-close" style="border:none;background:none;font-size:20px;cursor:pointer;color:var(--t3)">✕</button>
       </div>
 
       <div style="margin-bottom:1.5rem;padding:1rem;background:var(--bg);border-radius:8px">
@@ -3319,15 +3321,15 @@ function showCartaoDetalhes(cartaoOrEvent){
         </div>
       </div>
 
-      <button style="width:100%;padding:.6rem;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer">Fechar</button>
+      <button id="detail-modal-close-btn" style="width:100%;padding:.6rem;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer">Fechar</button>
     `;
-
-  // Attach event handlers
-  content.querySelector('button:first-of-type').onclick=()=>modal.remove();  // Close X button
-  content.querySelector('button:last-of-type').onclick=()=>modal.remove();   // Close button
 
   modal.appendChild(content);
   document.body.appendChild(modal);
+
+  // Attach event handlers AFTER appending
+  document.getElementById('detail-modal-close').onclick=closeModal;
+  document.getElementById('detail-modal-close-btn').onclick=closeModal;
 }
 
 /* ── FASE 3: Edição de Cartões ── */
@@ -3348,7 +3350,9 @@ function showEditCartaoModal(cartaoIdOrObj){
 
   const modal=document.createElement('div');
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:5001;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)';
-  modal.onclick=(ev)=>{if(ev.target===modal)modal.remove();};
+
+  const closeModal=()=>{modal.remove();};
+  modal.onclick=(ev)=>{if(ev.target===modal)closeModal();};
 
   const novaData=(d)=>d?d.split('-').reverse().join('/'):today().split('-').reverse().join('/');
 
@@ -3357,7 +3361,7 @@ function showEditCartaoModal(cartaoIdOrObj){
   content.innerHTML=`
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
         <h2 style="font-size:18px;font-weight:700;color:var(--t)">Editar ${cartao.emoji||'💳'} ${cartao.nome}</h2>
-        <button onclick="this.closest('[style*=position:fixed]').remove()" style="border:none;background:none;font-size:20px;cursor:pointer;color:var(--t3)">✕</button>
+        <button id="modal-close-btn" style="border:none;background:none;font-size:20px;cursor:pointer;color:var(--t3)">✕</button>
       </div>
 
       <div style="display:flex;flex-direction:column;gap:1.2rem;margin-bottom:1.5rem">
@@ -3380,32 +3384,26 @@ function showEditCartaoModal(cartaoIdOrObj){
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
-        <button style="padding:.75rem;background:var(--bg);color:var(--t2);border:1px solid var(--b);border-radius:8px;font-weight:600;cursor:pointer;transition:all .2s">Cancelar</button>
-        <button style="padding:.75rem;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;transition:all .2s">Salvar</button>
+        <button id="modal-cancel-btn" style="padding:.75rem;background:var(--bg);color:var(--t2);border:1px solid var(--b);border-radius:8px;font-weight:600;cursor:pointer;transition:all .2s">Cancelar</button>
+        <button id="modal-save-btn" style="padding:.75rem;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;transition:all .2s">Salvar</button>
       </div>
     `;
 
-  // Attach event handlers
-  const closeBtn=content.querySelector('button:first-of-type');
-  const cancelBtn=content.querySelectorAll('button')[1];
-  const saveBtn=content.querySelector('button:last-of-type');
-
-  closeBtn.onclick=()=>modal.remove();
-  cancelBtn.onclick=()=>modal.remove();
-  saveBtn.onclick=async()=>{
-    // Aguardar salvamento antes de fechar modal
-    const sucesso=await salvarEdicaoCartao(
-      cartao.id,
-      content.querySelector('#input-limite').value,
-      content.querySelector('#input-fechamento').value,
-      content.querySelector('#input-vencimento').value
-    );
-    // Só remove modal se salvou com sucesso
-    if(sucesso!==false)modal.remove();
-  };
-
   modal.appendChild(content);
   document.body.appendChild(modal);
+
+  // Attach event handlers AFTER appending to DOM
+  document.getElementById('modal-close-btn').onclick=closeModal;
+  document.getElementById('modal-cancel-btn').onclick=closeModal;
+  document.getElementById('modal-save-btn').onclick=async()=>{
+    const sucesso=await salvarEdicaoCartao(
+      cartao.id,
+      document.getElementById('input-limite').value,
+      document.getElementById('input-fechamento').value,
+      document.getElementById('input-vencimento').value
+    );
+    if(sucesso!==false)closeModal();
+  };
 }
 
 async function salvarEdicaoCartao(cartaoId,novoLimite,novaDataFech,novaDataVenc){
