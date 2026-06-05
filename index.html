@@ -544,6 +544,85 @@ const hoje=new Date();
 let mes=hoje.getFullYear()+'-'+String(hoje.getMonth()+1).padStart(2,'0');
 let fil='todos',eid=null,D={},dd=null,ocultarPagos=false;
 
+// CONFIG: Constantes e configurações centralizadas
+const CONFIG={
+  // Chaves do localStorage
+  storage:{
+    backup:'nosso-lar-backup',
+    theme:'nosso-lar-theme'
+  },
+  // Limites de tabela
+  table:{
+    maxRows:100,
+    lineHeightPx:28,
+    rowPaddingRem:0.4
+  },
+  // Períodos e datas
+  date:{
+    monthsToShow:12,
+    dateFormat:'DD/MM',
+    dateFormatISO:'YYYY-MM-DD'
+  },
+  // Parcelamentos padrão
+  installments:{
+    defaultCount:12,
+    minCount:1,
+    maxCount:60
+  },
+  // Cartões padrão
+  cards:{
+    defaultClosureDay:13,
+    defaultDueDay:20,
+    defaultLimit:5000
+  }
+};
+
+// TEMPLATES: Funções para renderizar componentes HTML
+const TEMPLATES={
+  // Status badge com cor
+  statusBadge:(status)=>{
+    const statusObj=SO.find(s=>s.v===status);
+    if(!statusObj)return '';
+    return `<span style="display:inline-block;padding:4px 8px;border-radius:6px;background:${statusObj.d};color:${statusObj.c};font-size:11px;font-weight:500;border:1px solid ${statusObj.c}">${statusObj.l}</span>`;
+  },
+
+  // Card de transação
+  transactionCard:(item)=>{
+    const status=SL[item.status]||item.status;
+    const cat=CI[item.categoria]||'📦';
+    return `<div class="cc" style="padding:12px;border-radius:8px;background:var(--bg);border:1px solid var(--b);margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:start">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <span style="font-size:16px">${cat}</span>
+            <span style="font-weight:600;color:var(--t)">${item.descricao||'Sem descrição'}</span>
+          </div>
+          <div style="font-size:12px;color:var(--t2)">${item.categoria||'Outros'} • ${status}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-weight:600;color:${item.tipo==='in'?'var(--g)':'var(--r)'}">R$ ${Math.abs(item.valor).toFixed(2)}</div>
+        </div>
+      </div>
+    </div>`;
+  },
+
+  // Modal header
+  modalHeader:(title,onClose)=>{
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:16px;border-bottom:1px solid var(--b)">
+      <h3 style="margin:0;font-size:18px;font-weight:600">${title}</h3>
+      <button onclick="${onClose}" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--t2)">✕</button>
+    </div>`;
+  },
+
+  // Modal footer com botões
+  modalFooter:(cancelText='Cancelar',saveText='Salvar',onCancel,onSave)=>{
+    return `<div style="display:flex;gap:8px;padding:16px;border-top:1px solid var(--b);background:var(--bg)">
+      <button onclick="${onCancel}" style="flex:1;padding:8px 16px;border:1px solid var(--b);background:var(--w);border-radius:6px;cursor:pointer;font-weight:500">${cancelText}</button>
+      <button onclick="${onSave}" style="flex:1;padding:8px 16px;background:var(--g);color:var(--w);border:none;border-radius:6px;cursor:pointer;font-weight:500">${saveText}</button>
+    </div>`;
+  }
+};
+
 const CARTOES_DEFAULT=[
   {id:'itau',nome:'Itaú',cor:'#ec7000',emoji:'🟠',fechamento:13,vencimento:20},
   {id:'santander',nome:'Way Santander',cor:'#cc0000',emoji:'🔴',fechamento:24,vencimento:1},
@@ -594,8 +673,8 @@ function showLE(m){const e=document.getElementById('login-err');if(e){e.textCont
 async function doLogout(){const sb=getSB();if(sb)await sb.auth.signOut();_session=null;showLogin();}
 
 function syncStatus(msg,color){const el=document.getElementById('sync-status');if(!el)return;el.textContent=msg;el.style.color=color||'rgba(255,255,255,.9)';}
-async function loadFromDB(){try{const h=await getAuthHeader();if(!h.Authorization){throw new Error('No auth token');}const r=await fetch(EDGE_URL,{headers:h,timeout:5000});if(r.status===401||r.status===403){throw new Error('Auth failed');}if(!r.ok){throw new Error('HTTP '+r.status);}const saved=await r.json();const hasRealData=saved&&typeof saved==='object'&&Object.keys(saved).filter(k=>k!=='month').length>0;if(hasRealData){Object.entries(saved).forEach(([k,v])=>{if(Array.isArray(v)){if(!D[k])D[k]=[];v.forEach(sv=>{const i=D[k].findIndex(e=>e.id===sv.id);if(i>=0)Object.assign(D[k][i],sv);else D[k].push(sv);});}else if(v&&typeof v==='object'&&!Array.isArray(v)){D[k]=Object.assign(D[k]||{},v);}});saveToLocalStorage();}else{throw new Error('Empty response');}syncStatus('✅ sincronizado','rgba(255,255,255,.9)');setTimeout(()=>syncStatus(''),3000);}catch(e){try{const stored=localStorage.getItem('nosso-lar-backup');if(stored){const backup=JSON.parse(stored);if(backup&&Object.keys(backup).length>2){Object.assign(D,backup);return;}}else{}initializeDefaultData();syncStatus('⚠ conexão falhou - usando dados padrão','#fbbf24');setTimeout(()=>syncStatus(''),5000);}}
-function saveToLocalStorage(){try{localStorage.setItem('nosso-lar-backup',JSON.stringify(D));}catch(e){}}
+async function loadFromDB(){try{const h=await getAuthHeader();if(!h.Authorization){throw new Error('No auth token');}const r=await fetch(EDGE_URL,{headers:h,timeout:5000});if(r.status===401||r.status===403){throw new Error('Auth failed');}if(!r.ok){throw new Error('HTTP '+r.status);}const saved=await r.json();const hasRealData=saved&&typeof saved==='object'&&Object.keys(saved).filter(k=>k!=='month').length>0;if(hasRealData){Object.entries(saved).forEach(([k,v])=>{if(Array.isArray(v)){if(!D[k])D[k]=[];v.forEach(sv=>{const i=D[k].findIndex(e=>e.id===sv.id);if(i>=0)Object.assign(D[k][i],sv);else D[k].push(sv);});}else if(v&&typeof v==='object'&&!Array.isArray(v)){D[k]=Object.assign(D[k]||{},v);}});saveToLocalStorage();}else{throw new Error('Empty response');}syncStatus('✅ sincronizado','rgba(255,255,255,.9)');setTimeout(()=>syncStatus(''),3000);}catch(e){try{const stored=localStorage.getItem(CONFIG.storage.backup);if(stored){const backup=JSON.parse(stored);if(backup&&Object.keys(backup).length>2){Object.assign(D,backup);syncStatus('⚠ Usando dados do backup local','#fbbf24');setTimeout(()=>syncStatus(''),5000);return;}}}catch(parseErr){toast('⚠️ Backup local corrompido','warning');}initializeDefaultData();syncStatus('⚠ conexão falhou - usando dados padrão','#fbbf24');setTimeout(()=>syncStatus(''),5000);}}
+function saveToLocalStorage(){try{localStorage.setItem(CONFIG.storage.backup,JSON.stringify(D));}catch(e){if(e.name==='QuotaExceededError'){toast('⚠️ Armazenamento local cheio','warning');}else if(e.name==='SecurityError'){toast('⚠️ Sem permissão de armazenamento','error');}else{toast('⚠️ Erro ao salvar backup local','warning');}}}
 
 let _st=null;
 function saveData(){clearTimeout(_st);syncStatus('💾 salvando…','rgba(255,255,255,.7)');_st=setTimeout(async()=>{try{const h=await getAuthHeader();const r=await fetch(EDGE_URL,{method:'POST',headers:{...h,'Content-Type':'application/json'},body:JSON.stringify(D)});if(!r.ok)throw new Error('HTTP '+r.status);const resp=await r.json();saveToLocalStorage();syncStatus('✅ salvo','#fff');setTimeout(()=>syncStatus(''),3000);}catch(e){saveToLocalStorage();syncStatus('⚠ salvo localmente','#fbbf24');}},2000);}
@@ -905,25 +984,35 @@ function navMes(dir){
   if(novo)changeMes(novo);
 }
 let _pickerOpen=false;
+let _pickerCloseHandler=null;
+function removePickerListener(){
+  if(_pickerCloseHandler){
+    document.removeEventListener('click',_pickerCloseHandler);
+    document.removeEventListener('touchend',_pickerCloseHandler);
+    _pickerCloseHandler=null;
+  }
+}
 function toggleNavPicker(e){
   if(e){e.stopPropagation();e.preventDefault();}
   _pickerOpen=!_pickerOpen;
   const p=document.getElementById('nav-picker');
   p.style.display=_pickerOpen?'block':'none';
   if(_pickerOpen){
-    buildSel(); // rebuid picker contents when opening
+    buildSel();
+    removePickerListener();
     setTimeout(()=>{
-      function h(ev){
+      _pickerCloseHandler=(ev)=>{
         if(!document.getElementById('nav-mes').contains(ev.target)){
           _pickerOpen=false;
           document.getElementById('nav-picker').style.display='none';
-          document.removeEventListener('click',h);
-          document.removeEventListener('touchend',h);
+          removePickerListener();
         }
-      }
-      document.addEventListener('click',h);
-      document.addEventListener('touchend',h);
+      };
+      document.addEventListener('click',_pickerCloseHandler);
+      document.addEventListener('touchend',_pickerCloseHandler);
     },50);
+  }else{
+    removePickerListener();
   }
 }
 function changeMes(m){mes=m;fil='todos';closeDd();_pickerOpen=false;const p=document.getElementById('nav-picker');if(p)p.style.display='none';document.querySelectorAll('.pill').forEach(b=>b.classList.remove('on'));document.querySelector('[data-f="todos"]').classList.add('on');buildSel();render();renderSide();}
@@ -2177,7 +2266,7 @@ function toast(msg){const t=document.createElement('div');t.className='toast';t.
 /* ── DARK MODE ── */
 function toggleDarkMode(){
   const isDark=document.body.classList.toggle('dark-mode');
-  localStorage.setItem('darkMode',isDark?'1':'0');
+  localStorage.setItem(CONFIG.storage.theme,isDark?'1':'0');
   const toggle=document.getElementById('theme-toggle');
   if(toggle)toggle.textContent=isDark?'☀️':'🌙';
   
@@ -2185,7 +2274,7 @@ function toggleDarkMode(){
 }
 
 // Inicializar dark mode
-if(localStorage.getItem('darkMode')==='1'){
+if(localStorage.getItem(CONFIG.storage.theme)==='1'){
   document.body.classList.add('dark-mode');
   const toggle=document.getElementById('theme-toggle');
   if(toggle)toggle.textContent='☀️';
@@ -3338,6 +3427,12 @@ async function salvarEdicaoCartao(cartaoId,novoLimite,novaDataFech,novaDataVenc)
         return null;
       }
       const[dd,mm]=dd_mm.split('/');
+      const dia=parseInt(dd,10);
+      const mes=parseInt(mm,10);
+      if(isNaN(dia)||isNaN(mes)||dia<1||dia>31||mes<1||mes>12){
+        alert('❌ Data inválida: dia deve ser 1-31, mês deve ser 1-12');
+        return null;
+      }
       return`${ano}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`;
     };
 
