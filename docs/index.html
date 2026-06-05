@@ -222,7 +222,7 @@ async function loadFaturas() {
 
     if (response.ok) {
       const data = await response.json();
-      console.log('📊 Dados recebidos:', data);
+      console.log('📊 Dados recebidos COMPLETOS:', data);
 
       // Extrair apenas as faturas (ignorar outros dados)
       faturas = [];
@@ -233,6 +233,7 @@ async function loadFaturas() {
       }
 
       console.log('✅ Total de faturas carregadas:', faturas.length);
+      console.log('🔍 Primeira fatura (estrutura):', faturas[0]);
       console.log('📅 Meses disponíveis:', [...new Set(faturas.map(f => f.mes_ref))].sort());
 
       renderCartoes();
