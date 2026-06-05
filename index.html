@@ -3381,14 +3381,16 @@ function showEditCartaoModal(cartaoIdOrObj){
 
   closeBtn.onclick=()=>modal.remove();
   cancelBtn.onclick=()=>modal.remove();
-  saveBtn.onclick=()=>{
-    salvarEdicaoCartao(
+  saveBtn.onclick=async()=>{
+    // Aguardar salvamento antes de fechar modal
+    const sucesso=await salvarEdicaoCartao(
       '${cartao.id}',
       content.querySelector('#input-limite').value,
       content.querySelector('#input-fechamento').value,
       content.querySelector('#input-vencimento').value
     );
-    modal.remove();
+    // Só remove modal se salvou com sucesso
+    if(sucesso!==false)modal.remove();
   };
 
   modal.appendChild(content);
@@ -3458,15 +3460,16 @@ async function salvarEdicaoCartao(cartaoId,novoLimite,novaDataFech,novaDataVenc)
       }
     }
 
-    // Fechar modal e rerender
-    document.querySelectorAll('[style*="inset:0"]').forEach(m=>m.remove());
+    // Salvar dados e rerender
     saveData();
     await renderCartoesDesktopNovo();
 
     console.log('✅ Cartão atualizado com sucesso');
+    return true;  // Indicar sucesso
   }catch(e){
     console.error('❌ Erro ao salvar edição:',e.message);
     alert('❌ '+e.message);
+    return false;  // Indicar falha
   }
 }
 
