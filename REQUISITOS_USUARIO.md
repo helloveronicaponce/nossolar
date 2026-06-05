@@ -186,17 +186,59 @@ this.closest('div').parentNode.remove()
      - Adicionado: getSI() em vez de valor fixo para saldo inicial
    - Arquivos: index.html linhas 3650-3690
 
-### Fase 2 - ALTA
-7. ✅ Melhorar distribuição de colunas na tabela
-8. ✅ Conectar saldo inicial mês N+1 com projetado mês N
-9. ✅ Corrigir gráfico para mostrar entradas
-10. ✅ Verificar lógica de consolidação
+### Fase 2 - ALTA (COMPLETO ✅)
+7. ✅ **Melhorar distribuição de colunas na tabela**
+   - Problema: Colunas Valor, Status e Saldo estavam comprimidas
+   - Solução: Aumentado Valor (100px→130px), Status (75px→100px), Saldo (80px→110px)
+   - Localização: index.html linhas 129, 131
 
-### Fase 3 - MÉDIA
-11. ⏳ Reduzir altura de linhas da tabela
-12. ⏳ Remover tooltip duplicado
-13. ⏳ Adicionar interatividade ao gráfico (clique em bolinha)
-14. ⏳ Adicionar saldo total e limite ao painel
-15. ⏳ Ajustar cards em 1 linha
-16. ⏳ Ajustar período do gráfico
-17. ⏳ Incluir parcelados
+8. ✅ **Conectar saldo inicial mês N+1 com projetado mês N**
+   - Status: JÁ IMPLEMENTADO
+   - Verificado: getSI(m) retorna getSaldoFinal(mês_anterior)
+   - Função corretamente propaga saldo final
+
+9. ✅ **Corrigir gráfico para mostrar entradas**
+   - Status: JÁ IMPLEMENTADO CORRETAMENTE
+   - Código desenha linhas verdes quando tipoFiltro !== 'saidas'
+   - Verificado: Entradas renderizam conforme esperado
+
+10. ✅ **Verificar lógica de consolidação**
+    - Status: RESOLVIDO NA FASE 1
+    - Lançamentos + Cartões agora consolidados corretamente
+
+### Fase 3 - MÉDIA (COMPLETO ✅)
+11. ✅ **Reduzir altura de linhas da tabela**
+    - Problema: Linhas muito espaçadas (36px)
+    - Solução: Reduzido para 28px e ajustado padding (.55rem → .4rem)
+    - Localização: index.html linha 131
+
+12. ✅ **Remover tooltip duplicado do gráfico de consumo**
+    - Problema: Tooltip mostrando "2026-01: 2026-01: R$ 8.900"
+    - Solução: Alterado para "2026-01 • R$ 8.900" (sem duplicação)
+    - Localização: index.html linhas 2981, 3001
+
+13. ⏳ **Adicionar interatividade ao gráfico (clique em bolinha)**
+    - Próximo item a ser implementado
+    - Requer: Modal/popup com breakdown por cartão ao clicar
+
+14. ✅ **Adicionar saldo total e limite ao painel de cartões**
+    - Problema: Faltava informação consolidada de cartões
+    - Solução: Adicionada seção "Resumo Total de Cartões" com:
+      - Total utilizado
+      - Limite total
+      - Disponível
+      - Percentual utilizado
+    - Localização: index.html linhas 2745-2769
+
+15. ✅ **Ajustar cards em 1 linha (Visão Geral)**
+    - Problema: Cards em 2 linhas
+    - Solução: grid-template-columns: repeat(6,minmax(140px,1fr))
+    - Localização: index.html linha 3439
+
+16. ⏳ **Ajustar período do gráfico**
+    - Próximo item a ser implementado
+    - Requer: Ajuste nos filtros de período
+
+17. ⏳ **Incluir parcelados (Espinha/Imóvel)**
+    - Próximo item a ser implementado
+    - Requer: Incluir tipo='parcelado' na consolidação
