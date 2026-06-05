@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nosso Lar - Dashboard Preview</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --g: #1DB954;
+      --gl: #e8f8ef;
+      --gd: #158a3e;
+      --r: #FF4757;
+      --rl: #fff0f1;
+      --a: #FFA502;
+      --al: #fff8ee;
+      --bg: #F4F6F9;
+      --w: #fff;
+      --t: #1a1d23;
+      --t2: #6b7280;
+      --t3: #757575;
+      --b: #e5e7eb;
+      --b2: #d1d5db;
+      --sh: 0 1px 4px rgba(0,0,0,.07), 0 4px 16px rgba(0,0,0,.05);
+    }
+
+    @media(prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f1419;
+        --w: #1a1f2e;
+        --t: #f0f4f8;
+        --t2: #cbd5e1;
+        --t3: #94a3b8;
+        --b: #334155;
+        --b2: #475569;
+        --sh: 0 1px 4px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.2);
+        --gl: #164e3a;
+        --rl: #7f1d1d;
+        --al: #92400e;
+      }
+    }
+
+    body {
+      font-family: Inter, sans-serif;
+      background: var(--bg);
+      color: var(--t);
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* TOPBAR */
+    .top {
+      background: var(--g);
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      height: 64px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      gap: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,.1);
+    }
+
+    .logo {
+      font-size: 17px;
+      font-weight: 800;
+      color: #fff;
+      margin-right: auto;
+    }
+
+    .btn-preview {
+      background: rgba(255,255,255,.15);
+      border: 1px solid rgba(255,255,255,.25);
+      border-radius: 8px;
+      padding: .3rem .6rem;
+      color: #fff;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all .2s;
+      line-height: 1;
+    }
+
+    .btn-preview:hover {
+      background: rgba(255,255,255,.25);
+    }
+
+    /* CONTAINER */
+    .container {
+      padding: 1.5rem;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* CARDS */
+    .summary-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .card {
+      background: var(--w);
+      padding: 1.5rem;
+      border-radius: 12px;
+      border: 1px solid var(--b);
+      box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    }
+
+    .card-label {
+      font-size: 11px;
+      color: var(--t2);
+      font-weight: 600;
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+    }
+
+    .card-value {
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .card-value.green { color: var(--g); }
+    .card-value.red { color: var(--r); }
+
+    /* LAYOUT */
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 1.5rem;
+    }
+
+    .main-column {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    /* SECTION */
+    .section {
+      background: var(--w);
+      padding: 1.5rem;
+      border-radius: 12px;
+      border: 1px solid var(--b);
+      box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    }
+
+    .section h3 {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+
+    /* CATEGORY LIST */
+    .category-item {
+      padding: 0.75rem;
+      background: var(--bg);
+      border-radius: 8px;
+      margin-bottom: 0.75rem;
+    }
+
+    .category-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+      font-size: 12px;
+    }
+
+    .category-name {
+      color: var(--t2);
+      font-weight: 600;
+    }
+
+    .category-value {
+      color: var(--t);
+      font-weight: 700;
+    }
+
+    .category-bar {
+      height: 6px;
+      background: var(--b);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .category-fill {
+      height: 100%;
+      background: var(--r);
+      border-radius: 3px;
+    }
+
+    /* TRANSACTION LIST */
+    .transaction-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem;
+      border-bottom: 1px solid var(--b);
+      font-size: 12px;
+    }
+
+    .transaction-info {
+      flex: 1;
+    }
+
+    .transaction-desc {
+      font-weight: 600;
+      color: var(--t);
+    }
+
+    .transaction-meta {
+      font-size: 11px;
+      color: var(--t3);
+    }
+
+    .transaction-value {
+      font-weight: 700;
+      text-align: right;
+    }
+
+    .transaction-value.in { color: var(--g); }
+    .transaction-value.out { color: var(--r); }
+
+    /* SIDEBAR CARD */
+    .sidebar-card {
+      background: linear-gradient(135deg, var(--g) 0%, var(--gd) 100%);
+      color: white;
+      padding: 1.5rem;
+      border-radius: 12px;
+    }
+
+    .sidebar-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      opacity: 0.8;
+      margin-bottom: 0.5rem;
+    }
+
+    .sidebar-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+
+    .sidebar-meta {
+      font-size: 12px;
+      opacity: 0.9;
+    }
+
+    /* STATS */
+    .stats-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      font-size: 12px;
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .stat-label {
+      color: var(--t2);
+    }
+
+    .stat-value {
+      font-weight: 700;
+    }
+
+    @media (max-width: 1024px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="top">
+  <div class="logo">🏠 Nosso Lar</div>
+  <span style="color: #fff; font-size: 12px; opacity: 0.8;">Dashboard Preview (Dados de Exemplo)</span>
+  <button class="btn-preview" onclick="alert('Em produção, você faria login aqui!')">Voltar ao App</button>
+</div>
+
+<!-- MAIN CONTAINER -->
+<div class="container">
+
+  <!-- SUMMARY CARDS -->
+  <div class="summary-cards">
+    <div class="card">
+      <div class="card-label">📥 Entradas</div>
+      <div class="card-value green">R$ 12.500,00</div>
+    </div>
+    <div class="card">
+      <div class="card-label">📤 Saídas</div>
+      <div class="card-value red">R$ 8.350,00</div>
+    </div>
+    <div class="card">
+      <div class="card-label">📈 Resultado</div>
+      <div class="card-value green">R$ 4.150,00</div>
+    </div>
+  </div>
+
+  <!-- MAIN LAYOUT -->
+  <div class="layout">
+
+    <!-- MAIN COLUMN -->
+    <div class="main-column">
+
+      <!-- TOP CATEGORIES -->
+      <div class="section">
+        <h3>🏷️ Maiores Gastos</h3>
+
+        <div class="category-item">
+          <div class="category-header">
+            <span class="category-name">Casa</span>
+            <span class="category-value">R$ 3.200,00</span>
+          </div>
+          <div class="category-bar">
+            <div class="category-fill" style="width: 100%;"></div>
+          </div>
+        </div>
+
+        <div class="category-item">
+          <div class="category-header">
+            <span class="category-name">Educação</span>
+            <span class="category-value">R$ 2.500,00</span>
+          </div>
+          <div class="category-bar">
+            <div class="category-fill" style="width: 78%;"></div>
+          </div>
+        </div>
+
+        <div class="category-item">
+          <div class="category-header">
+            <span class="category-name">Alimentação</span>
+            <span class="category-value">R$ 1.850,00</span>
+          </div>
+          <div class="category-bar">
+            <div class="category-fill" style="width: 58%;"></div>
+          </div>
+        </div>
+
+        <div class="category-item">
+          <div class="category-header">
+            <span class="category-name">Saúde</span>
+            <span class="category-value">R$ 1.200,00</span>
+          </div>
+          <div class="category-bar">
+            <div class="category-fill" style="width: 37%;"></div>
+          </div>
+        </div>
+
+        <div class="category-item">
+          <div class="category-header">
+            <span class="category-name">Transporte</span>
+            <span class="category-value">R$ 600,00</span>
+          </div>
+          <div class="category-bar">
+            <div class="category-fill" style="width: 19%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RECENT TRANSACTIONS -->
+      <div class="section">
+        <h3>📋 Últimos Lançamentos</h3>
+
+        <div class="transaction-item">
+          <div class="transaction-info">
+            <div class="transaction-desc">Aluguel Apartamento</div>
+            <div class="transaction-meta">Casa • 05/06/2026</div>
+          </div>
+          <div class="transaction-value out">- R$ 3.200,00</div>
+        </div>
+
+        <div class="transaction-item">
+          <div class="transaction-info">
+            <div class="transaction-desc">Salário</div>
+            <div class="transaction-meta">Receitas • 01/06/2026</div>
+          </div>
+          <div class="transaction-value in">+ R$ 8.500,00</div>
+        </div>
+
+        <div class="transaction-item">
+          <div class="transaction-info">
+            <div class="transaction-desc">Escola - Lorenzo</div>
+            <div class="transaction-meta">Educação • 02/06/2026</div>
+          </div>
+          <div class="transaction-value out">- R$ 805,00</div>
+        </div>
+
+        <div class="transaction-item">
+          <div class="transaction-info">
+            <div class="transaction-desc">Supermercado</div>
+            <div class="transaction-meta">Alimentação • 03/06/2026</div>
+          </div>
+          <div class="transaction-value out">- R$ 450,00</div>
+        </div>
+
+        <div class="transaction-item">
+          <div class="transaction-info">
+            <div class="transaction-desc">Consultório Médico</div>
+            <div class="transaction-meta">Saúde • 02/06/2026</div>
+          </div>
+          <div class="transaction-value out">- R$ 300,00</div>
+        </div>
+
+        <div class="transaction-item">
+          <div class="transaction-info">
+            <div class="transaction-desc">Uber / Táxi</div>
+            <div class="transaction-meta">Transporte • 04/06/2026</div>
+          </div>
+          <div class="transaction-value out">- R$ 120,00</div>
+        </div>
+
+        <div class="transaction-item">
+          <div class="transaction-info">
+            <div class="transaction-desc">Cinema</div>
+            <div class="transaction-meta">Lazer • 04/06/2026</div>
+          </div>
+          <div class="transaction-value out">- R$ 80,00</div>
+        </div>
+
+        <div class="transaction-item">
+          <div class="transaction-info">
+            <div class="transaction-desc">Restaurante</div>
+            <div class="transaction-meta">Alimentação • 05/06/2026</div>
+          </div>
+          <div class="transaction-value out">- R$ 150,00</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+
+      <!-- PERIOD INFO -->
+      <div class="sidebar-card">
+        <div class="sidebar-label">Período</div>
+        <div class="sidebar-title">2026-06</div>
+        <div class="sidebar-meta">
+          8 transações até agora
+        </div>
+      </div>
+
+      <!-- QUICK STATS -->
+      <div class="section">
+        <h4 style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--t2); margin-bottom: 1rem;">Análise</h4>
+        <div class="stats-grid">
+          <div class="stat-row">
+            <span class="stat-label">Transações:</span>
+            <span class="stat-value">8</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Categorias:</span>
+            <span class="stat-value">6</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Ticket médio:</span>
+            <span class="stat-value">R$ 1.043,75</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Maior gasto:</span>
+            <span class="stat-value">R$ 3.200,00</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Saldo mês:</span>
+            <span class="stat-value" style="color: var(--g);">+ R$ 4.150,00</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- INFO CARD -->
+      <div class="section" style="background: var(--gl); border-color: var(--g);">
+        <h4 style="font-size: 12px; font-weight: 700; color: var(--gd); margin-bottom: 0.75rem;">✨ Novo Dashboard</h4>
+        <p style="font-size: 12px; color: var(--gd); line-height: 1.5;">
+          Este painel se atualiza em tempo real com seus dados do Supabase. Clique no botão 📊 na barra superior para alternar entre o novo dashboard e a visualização clássica.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
