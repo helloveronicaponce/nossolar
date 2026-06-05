@@ -480,7 +480,6 @@ button,a,[role="button"]{min-width:44px;min-height:44px;display:inline-flex;alig
 <div class="page-container" id="page-visao-geral" role="tabpanel" aria-labelledby="tab-visao-geral"></div>
 <!-- FIM VISÃO GERAL -->
 
-
 <!-- BOTTOM TAB BAR -->
 </div><!-- /app-root -->
 
@@ -685,7 +684,7 @@ function showLE(m){const e=document.getElementById('login-err');if(e){e.textCont
 async function doLogout(){const sb=getSB();if(sb)await sb.auth.signOut();_session=null;showLogin();}
 
 function syncStatus(msg,color){const el=document.getElementById('sync-status');if(!el)return;el.textContent=msg;el.style.color=color||'rgba(255,255,255,.9)';}
-async function loadFromDB(){try{console.log('🔄 Iniciando loadFromDB...');const h=await getAuthHeader();console.log('🔑 Auth header:', h.Authorization?'✓ Token obtido':'✗ Sem token');if(!h.Authorization){throw new Error('No auth token');}console.log('📡 Chamando Edge Function:', EDGE_URL);const r=await fetch(EDGE_URL,{headers:h,timeout:5000});console.log('📥 Resposta:', r.status, r.statusText);if(r.status===401||r.status===403){throw new Error('Auth failed ('+r.status+')');}if(!r.ok){throw new Error('HTTP '+r.status);}const saved=await r.json();console.log('📊 Dados recebidos:', saved);const firstMonth=Object.entries(saved).find(([k,v])=>Array.isArray(v)&&v.length>0);if(firstMonth){console.log('🔍 Primeiro item do primeiro mês:', firstMonth[1][0]);}const hasRealData=saved&&typeof saved==='object'&&Object.keys(saved).filter(k=>k!=='month').length>0;if(hasRealData){console.log('✅ Dados válidos encontrados');Object.entries(saved).forEach(([k,v])=>{if(Array.isArray(v)){if(!D[k])D[k]=[];v.forEach(sv=>{const i=D[k].findIndex(e=>e.id===sv.id);if(i>=0)Object.assign(D[k][i],sv);else D[k].push(sv);});}else if(v&&typeof v==='object'&&!Array.isArray(v)){D[k]=Object.assign(D[k]||{},v);}});saveToLocalStorage();}else{throw new Error('Empty response');}syncStatus('✅ sincronizado','rgba(255,255,255,.9)');setTimeout(()=>syncStatus(''),3000);}catch(e){console.error('❌ Erro em loadFromDB:', e.message);try{const stored=localStorage.getItem(CONFIG.storage.backup);if(stored){const backup=JSON.parse(stored);if(backup&&Object.keys(backup).length>2){console.log('🔄 Usando backup local');Object.assign(D,backup);syncStatus('⚠ Usando dados do backup local','#fbbf24');setTimeout(()=>syncStatus(''),5000);return;}}}catch(parseErr){toast('⚠️ Backup local corrompido','warning');}initializeDefaultData();syncStatus('⚠ conexão falhou - usando dados padrão','#fbbf24');setTimeout(()=>syncStatus(''),5000);}}
+async function loadFromDB(){try{const h=await getAuthHeader();if(!h.Authorization){throw new Error('No auth token');}const r=await fetch(EDGE_URL,{headers:h,timeout:5000});if(r.status===401||r.status===403){throw new Error('Auth failed ('+r.status+')');}if(!r.ok){throw new Error('HTTP '+r.status);}const saved=await r.json();const firstMonth=Object.entries(saved).find(([k,v])=>Array.isArray(v)&&v.length>0);if(firstMonth){}const hasRealData=saved&&typeof saved==='object'&&Object.keys(saved).filter(k=>k!=='month').length>0;if(hasRealData){Object.entries(saved).forEach(([k,v])=>{if(Array.isArray(v)){if(!D[k])D[k]=[];v.forEach(sv=>{const i=D[k].findIndex(e=>e.id===sv.id);if(i>=0)Object.assign(D[k][i],sv);else D[k].push(sv);});}else if(v&&typeof v==='object'&&!Array.isArray(v)){D[k]=Object.assign(D[k]||{},v);}});saveToLocalStorage();}else{throw new Error('Empty response');}syncStatus('✅ sincronizado','rgba(255,255,255,.9)');setTimeout(()=>syncStatus(''),3000);}catch(e){try{const stored=localStorage.getItem(CONFIG.storage.backup);if(stored){const backup=JSON.parse(stored);if(backup&&Object.keys(backup).length>2){Object.assign(D,backup);syncStatus('⚠ Usando dados do backup local','#fbbf24');setTimeout(()=>syncStatus(''),5000);return;}}}catch(parseErr){toast('⚠️ Backup local corrompido','warning');}initializeDefaultData();syncStatus('⚠ conexão falhou - usando dados padrão','#fbbf24');setTimeout(()=>syncStatus(''),5000);}}
 function saveToLocalStorage(){try{localStorage.setItem(CONFIG.storage.backup,JSON.stringify(D));}catch(e){if(e.name==='QuotaExceededError'){toast('⚠️ Armazenamento local cheio','warning');}else if(e.name==='SecurityError'){toast('⚠️ Sem permissão de armazenamento','error');}else{toast('⚠️ Erro ao salvar backup local','warning');}}}
 
 let _st=null;
@@ -694,7 +693,7 @@ function saveData(){clearTimeout(_st);syncStatus('💾 salvando…','rgba(255,25
 function initializeDefaultData(){syncStatus('❌ sem dados - Edge Function vazia','#dc2626');}
 
 /* ── DIAGNÓSTICO ── */
-async function testConnection(){const sb=getSB();if(!sb)return;const{data:{session}}=await sb.auth.getSession();const h=await getAuthHeader();try{const r=await fetch(EDGE_URL,{headers:h});if(r.ok){const data=await r.json();}}catch(e){}}
+async function testConnection(){const sb=getSB();if(!sb)return;try{const{data:{session}}=await sb.auth.getSession();const h=await getAuthHeader();const r=await fetch(EDGE_URL,{headers:h});if(!r.ok)throw new Error('Connection failed');const data=await r.json();}catch(e){if(DEBUG_MODE)toast('Erro de conexão','error');}}
 
 function showNotification(msg){
   // Usa o novo sistema de toast
@@ -1817,7 +1816,6 @@ function renderGestaoCartoes(){
   }catch(e){el.innerHTML='<div style="padding:1rem;color:red">Erro ao renderizar cartões: '+e.message+'</div>';}
 }
 
-
 function renderSide(){
   const all=rows();
   const cat={};all.filter(r=>r.tipo==='out').forEach(r=>{cat[r.cat]=(cat[r.cat]||0)+r.valor;});
@@ -2320,7 +2318,6 @@ function showOnboarding(){}
 
 /* ── DESKTOP PAGE NAVIGATION ── */
 async function switchPage(page){
-  
 
   // Atualizar abas ativas
   document.querySelectorAll('.desktop-tab').forEach(tab=>{
@@ -2664,7 +2661,6 @@ async function gerarCategoriaComIA(fatura){
       categoria='Assinaturas';
     }
 
-    
     return categoria;
   }catch(e){
     
@@ -3296,10 +3292,6 @@ function renderGraficoConsumoMensal(){
   const graficoEl=document.getElementById('grafico-consumo-mensal');
   if(!graficoEl)return;
 
-  
-  
-  
-
   const faturas=D._faturasRaw||[];
   if(faturas.length===0){
     
@@ -3319,8 +3311,6 @@ function renderGraficoConsumoMensal(){
     if(!gastosPorMes[mes])gastosPorMes[mes]=0;
     gastosPorMes[mes]+=(f.fatura_total||0);
   });
-
-  
 
   // Ordenar meses
   const meses=Object.keys(gastosPorMes).sort();
@@ -3459,9 +3449,6 @@ function renderGraficoConsumoMensal(){
 function renderGraficoCategoriasmensal(){
   const graficoEl=document.getElementById('grafico-categorias-mensal');
   if(!graficoEl)return;
-
-  
-  
 
   const faturas=D._faturasRaw||[];
   if(faturas.length===0){
@@ -3725,7 +3712,6 @@ function showEditCartaoModal(cartaoIdOrObj){
 
 async function salvarEdicaoCartao(cartaoId,novoLimite,novaDataFech,novaDataVenc){
   try{
-    
 
     // Validar inputs
     if(!novoLimite||isNaN(parseFloat(novoLimite))){
@@ -3796,7 +3782,6 @@ async function salvarEdicaoCartao(cartaoId,novoLimite,novaDataFech,novaDataVenc)
     saveData();
     await renderCartoesDesktopNovo();
 
-    
     return true;  // Indicar sucesso
   }catch(e){
     
@@ -4444,8 +4429,16 @@ async function init(){
   const tbEl=document.getElementById('tb');if(tbEl)tbEl.addEventListener('click',tbDelegate);
   const tbMEl=document.getElementById('tb-m');if(tbMEl)tbMEl.addEventListener('click',tbDelegate);
 
-  // Responsividade
-  window.addEventListener('resize',()=>{checkLayout();render();renderSide();});
+  // Responsividade com throttling (máx 1 vez a cada 250ms)
+  let resizeTimeout;
+  window.addEventListener('resize',()=>{
+    clearTimeout(resizeTimeout);
+    resizeTimeout=setTimeout(()=>{
+      checkLayout();
+      render();
+      renderSide();
+    },250);
+  });
 
   // Autenticação e carregamento de dados
   await checkAuth();
@@ -4494,7 +4487,11 @@ async function init(){
         // Onboarding desativado - acesso direto
       }
     }
-    catch(e){}
+    catch(e){
+      // Erro na inicialização - mostrar mensagem mas continuar
+      document.getElementById('app-root').style.display='block';
+      toast('Erro ao inicializar aplicação','error');
+    }
   }
 }
 init();
@@ -4578,7 +4575,7 @@ async function loadSupabaseData() {
   try {
     const sb = getSB();
     if (!sb) {
-      console.log('Supabase não inicializado');
+      
       return null;
     }
 
@@ -4590,10 +4587,10 @@ async function loadSupabaseData() {
 
     if (error) throw error;
     supabaseData = data?.data || {};
-    console.log('✅ Dados carregados do Supabase:', Object.keys(supabaseData));
+    );
     return supabaseData;
   } catch (err) {
-    console.error('❌ Erro ao carregar Supabase:', err);
+    
     return null;
   }
 }
@@ -4655,7 +4652,7 @@ async function initDashboard() {
       .pop();
 
     if (latestMonth) {
-      console.log('🎯 Renderizando dashboard para:', latestMonth);
+      
       renderDashboard(latestMonth);
     }
   }
@@ -4774,16 +4771,8 @@ function renderDashboard(monthKey) {
   `;
 }
 
-// Inicializar quando o painel for aberto
-let dashboardInitialized = false;
-document.addEventListener('DOMContentLoaded', () => {
-  setTimeout(() => {
-    if (!dashboardInitialized) {
-      initDashboard();
-      dashboardInitialized = true;
-    }
-  }, 1000);
-});
+// Removido: Delay desnecessário de 1000ms
+// initDashboard() é chamado em init() que executa imediatamente
 
 let deferredPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;if(!sessionStorage.getItem('pwa-dismissed')){const b=document.createElement('div');b.style.cssText='position:fixed;bottom:calc(76px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:#1a1d23;color:#fff;padding:.65rem 1.1rem;border-radius:99px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:.75rem;box-shadow:0 8px 24px rgba(0,0,0,.3);z-index:999;white-space:nowrap;font-family:Inter,sans-serif';b.innerHTML='🏠 Adicionar à tela inicial <button onclick="deferredPrompt?.prompt();this.parentNode.remove()" style="background:#1DB954;border:none;color:#fff;border-radius:99px;padding:.3rem .85rem;font-size:12px;font-weight:700;cursor:pointer;font-family:Inter,sans-serif">Instalar</button><button onclick="sessionStorage.setItem(\'pwa-dismissed\',1);this.parentNode.remove()" style="background:none;border:none;color:#9ca3af;font-size:18px;cursor:pointer;line-height:1">×</button>';document.body.appendChild(b);setTimeout(()=>b?.remove(),12000);}});
 </script>
