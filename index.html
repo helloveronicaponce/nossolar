@@ -2738,30 +2738,35 @@ async function renderCartoesDesktopNovo(){
   if(!container)return;
 
   // Mostrar loading enquanto busca faturas
-  container.innerHTML='<div class="card" style="text-align:center;padding:3rem;color:var(--t3)">Carregando faturas...</div>';
+  container.innerHTML='<div class="card" style="text-align:center;padding:3rem;color:var(--t3)">⏳ Carregando faturas do Supabase...</div>';
 
-  // Buscar faturas do Supabase
-  await fetchFaturasFromSupabase();
+  try{
+    // Buscar faturas do Supabase
+    await fetchFaturasFromSupabase();
 
-  // Validar se dados foram carregados
-  if(!D._faturas||!D._limites||!D._faturasRaw){
-    D._faturas=D._faturas||{};
-    D._limites=D._limites||{};
-    D._faturasRaw=D._faturasRaw||[];
-  }
+    // Validar se dados foram carregados
+    if(!D._faturas||!D._limites||!D._faturasRaw){
+      D._faturas=D._faturas||{};
+      D._limites=D._limites||{};
+      D._faturasRaw=D._faturasRaw||[];
+    }
 
-  container.innerHTML='';
+    container.innerHTML='';
 
-  const cartoes=getCartoes();
-  if(!cartoes||cartoes.length===0){
-    container.innerHTML='<div class="card" style="text-align:center;padding:3rem;color:var(--t3)">📋 Nenhum cartão configurado. Adicione um cartão para começar.</div>';
+    const cartoes=getCartoes();
+    if(!cartoes||cartoes.length===0){
+      container.innerHTML='<div class="card" style="text-align:center;padding:3rem;color:var(--t3)"><div style="font-size:48px;margin-bottom:1rem">💳</div><div style="font-weight:600;font-size:16px;margin-bottom:.5rem;color:var(--t)">Nenhum cartão configurado</div><div style="color:var(--t2);font-size:13px">Para começar, você precisa adicionar cartões de crédito no sistema.</div></div>';
+      return;
+    }
+
+    // Verificar se há dados de faturas
+    const temFaturas=Object.keys(D._faturas).length>0&&Object.keys(D._faturas).some(m=>Object.keys(D._faturas[m]||{}).length>0);
+    if(!temFaturas){
+      container.innerHTML='<div class="card" style="padding:1.5rem;background:rgba(255,165,0,.1);border-left:4px solid var(--a);margin-bottom:1.5rem"><div style="font-weight:600;color:var(--a);margin-bottom:.5rem;display:flex;align-items:center;gap:.5rem"><span>⚠️</span><span>Sem dados de faturas</span></div><div style="font-size:13px;color:var(--t2);line-height:1.5">Nenhuma fatura foi encontrada no Supabase para os cartões cadastrados.<br/>Verifique se os dados foram sincronizados corretamente.</div></div>';
+    }
+  }catch(e){
+    container.innerHTML='<div class="card" style="padding:1.5rem;background:rgba(255,67,87,.1);border-left:4px solid var(--r)"><div style="font-weight:600;color:var(--r);margin-bottom:.5rem;display:flex;align-items:center;gap:.5rem"><span>❌</span><span>Erro ao carregar cartões</span></div><div style="font-size:13px;color:var(--t2);line-height:1.5">Houve um erro ao buscar os dados do Supabase.<br/>Tente novamente em alguns momentos.</div></div>';
     return;
-  }
-
-  // Verificar se há dados de faturas
-  const temFaturas=Object.keys(D._faturas).length>0&&Object.keys(D._faturas).some(m=>Object.keys(D._faturas[m]).length>0);
-  if(!temFaturas){
-    container.innerHTML+='<div class="card" style="padding:1.5rem;background:rgba(255,165,0,.1);border-left:4px solid var(--a)"><div style="font-weight:600;color:var(--a);margin-bottom:.5rem">⚠️ Sem dados de faturas</div><div style="font-size:13px;color:var(--t2)">Nenhuma fatura foi encontrada no Supabase para os cartões cadastrados. Verifique se os dados foram sincronizados.</div></div>';
   }
 
   // ═══════════════════════════════════════════════════════════
