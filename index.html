@@ -4,14 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>Nosso Lar - Painel Financeiro</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
       --primary: #1DB954;
       --danger: #FF4757;
@@ -22,20 +17,12 @@
       --text-light: #6b7280;
       --border: #e5e7eb;
     }
-
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
-      line-height: 1.6;
     }
-
-    /* LAYOUT */
-    .app {
-      max-width: 1200px;
-      margin: 0 auto;
-    }
-
+    .app { max-width: 1200px; margin: 0 auto; }
     .header {
       background: linear-gradient(135deg, var(--primary), #158a3e);
       color: var(--white);
@@ -43,19 +30,8 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      box-shadow: 0 4px 12px rgba(0,0,0,.1);
     }
-
-    .header h1 {
-      font-size: 24px;
-      font-weight: 700;
-    }
-
-    .header-actions {
-      display: flex;
-      gap: 1rem;
-    }
-
+    .header h1 { font-size: 24px; font-weight: 700; }
     .btn {
       padding: 0.6rem 1.2rem;
       border: none;
@@ -65,52 +41,17 @@
       transition: all 0.2s;
       font-size: 14px;
     }
-
-    .btn-primary {
-      background: var(--primary);
-      color: var(--white);
-    }
-
-    .btn-primary:hover {
-      opacity: 0.9;
-      transform: translateY(-2px);
-    }
-
-    .btn-secondary {
-      background: var(--white);
-      color: var(--primary);
-      border: 2px solid var(--primary);
-    }
-
-    .btn-secondary:hover {
-      background: var(--primary);
-      color: var(--white);
-    }
-
-    .btn-danger {
-      background: var(--danger);
-      color: var(--white);
-    }
-
-    .btn-danger:hover {
-      opacity: 0.9;
-    }
-
-    .btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    /* TABS */
+    .btn-primary { background: var(--primary); color: var(--white); }
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-2px); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-secondary { background: var(--white); color: var(--primary); border: 2px solid var(--primary); }
     .tabs {
       display: flex;
       gap: 0.5rem;
       padding: 2rem;
       border-bottom: 2px solid var(--border);
       background: var(--white);
-      box-shadow: 0 2px 8px rgba(0,0,0,.05);
     }
-
     .tab {
       padding: 0.75rem 1.5rem;
       background: none;
@@ -119,256 +60,47 @@
       color: var(--text-light);
       font-weight: 600;
       cursor: pointer;
-      transition: all 0.2s;
     }
-
-    .tab.active {
-      color: var(--primary);
-      border-bottom-color: var(--primary);
-    }
-
-    /* CONTENT */
-    .content {
-      padding: 2rem;
-      display: none;
-    }
-
-    .content.active {
-      display: block;
-    }
-
-    /* CARDS */
+    .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .content { padding: 2rem; display: none; }
+    .content.active { display: block; }
     .card {
       background: var(--white);
       border-radius: 12px;
       padding: 1.5rem;
       border: 1px solid var(--border);
-      box-shadow: 0 2px 8px rgba(0,0,0,.05);
       margin-bottom: 1.5rem;
     }
-
-    .card h2 {
-      font-size: 18px;
-      margin-bottom: 1rem;
-      color: var(--text);
-    }
-
-    /* GRID */
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 1.5rem;
-      margin-bottom: 1.5rem;
-    }
-
-    /* TABLE */
-    .table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 1rem;
-    }
-
-    .table thead {
-      background: var(--bg);
-    }
-
-    .table th {
-      padding: 1rem;
-      text-align: left;
-      font-weight: 600;
-      color: var(--text);
-      border-bottom: 2px solid var(--border);
-    }
-
-    .table td {
-      padding: 1rem;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .table tr:hover {
-      background: var(--bg);
-    }
-
-    /* MODAL */
-    .modal {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,.5);
-      z-index: 5000;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .modal.active {
-      display: flex;
-    }
-
-    .modal-content {
-      background: var(--white);
-      border-radius: 12px;
-      padding: 2rem;
-      width: 90%;
-      max-width: 500px;
-      max-height: 90vh;
-      overflow-y: auto;
-      box-shadow: 0 20px 60px rgba(0,0,0,.3);
-    }
-
-    .modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1.5rem;
-      padding-bottom: 1rem;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .modal-header h3 {
-      font-size: 20px;
-    }
-
-    .modal-close {
-      background: none;
-      border: none;
-      font-size: 24px;
-      cursor: pointer;
-      color: var(--text-light);
-    }
-
-    .form-group {
-      margin-bottom: 1.5rem;
-    }
-
-    .form-group label {
-      display: block;
-      font-weight: 600;
-      margin-bottom: 0.5rem;
-      color: var(--text);
-      font-size: 14px;
-    }
-
-    .form-group input,
-    .form-group select,
-    .form-group textarea {
-      width: 100%;
-      padding: 0.75rem;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      font-size: 14px;
-      font-family: inherit;
-    }
-
-    .form-group input:focus,
-    .form-group select:focus,
-    .form-group textarea:focus {
-      outline: none;
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(29, 185, 84, 0.1);
-    }
-
-    .form-actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1rem;
-      margin-top: 2rem;
-    }
-
-    /* ALERTS */
-    .alert {
-      padding: 1rem;
-      border-radius: 8px;
-      margin-bottom: 1rem;
-      display: flex;
-      gap: 1rem;
-      align-items: center;
-    }
-
-    .alert-success {
-      background: #dcfce7;
-      color: #166534;
-      border-left: 4px solid #16a34a;
-    }
-
-    .alert-error {
-      background: #fee2e2;
-      color: #991b1b;
-      border-left: 4px solid #dc2626;
-    }
-
-    .alert-warning {
-      background: #fef9c3;
-      color: #854d0e;
-      border-left: 4px solid #eab308;
-    }
-
-    /* AUTH */
-    .login-screen {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      background: linear-gradient(135deg, var(--primary), #158a3e);
-    }
-
-    .login-box {
-      background: var(--white);
-      padding: 2rem;
-      border-radius: 12px;
-      width: 90%;
-      max-width: 400px;
-      box-shadow: 0 20px 60px rgba(0,0,0,.3);
-      text-align: center;
-    }
-
-    .login-box h1 {
-      font-size: 28px;
-      margin-bottom: 1rem;
-      color: var(--primary);
-    }
-
-    .login-box p {
-      color: var(--text-light);
-      margin-bottom: 1.5rem;
-    }
-
-    /* UTILITY */
-    .text-danger {
-      color: var(--danger);
-    }
-
-    .text-success {
-      color: var(--primary);
-    }
-
-    .text-muted {
-      color: var(--text-light);
-    }
-
-    .mt-1 { margin-top: 0.5rem; }
-    .mt-2 { margin-top: 1rem; }
-    .mb-1 { margin-bottom: 0.5rem; }
-    .mb-2 { margin-bottom: 1rem; }
-
-    .text-center {
-      text-align: center;
-    }
-
-    .text-right {
-      text-align: right;
-    }
-
-    .hidden {
-      display: none !important;
-    }
+    .card h2 { font-size: 18px; margin-bottom: 1rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem; }
+    .table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+    .table thead { background: var(--bg); }
+    .table th { padding: 1rem; text-align: left; font-weight: 600; border-bottom: 2px solid var(--border); }
+    .table td { padding: 1rem; border-bottom: 1px solid var(--border); }
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,.5); z-index: 5000; align-items: center; justify-content: center; }
+    .modal.active { display: flex; }
+    .modal-content { background: var(--white); border-radius: 12px; padding: 2rem; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+    .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-light); }
+    .form-group { margin-bottom: 1.5rem; }
+    .form-group label { display: block; font-weight: 600; margin-bottom: 0.5rem; }
+    .form-group input, .form-group select { width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-family: inherit; }
+    .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(29, 185, 84, 0.1); }
+    .form-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 2rem; }
+    .login-screen { display: flex; align-items: center; justify-content: center; height: 100vh; background: linear-gradient(135deg, var(--primary), #158a3e); }
+    .login-box { background: var(--white); padding: 2rem; border-radius: 12px; width: 90%; max-width: 400px; box-shadow: 0 20px 60px rgba(0,0,0,.3); text-align: center; }
+    .login-box h1 { font-size: 28px; margin-bottom: 1rem; color: var(--primary); }
+    .login-box p { color: var(--text-light); margin-bottom: 1.5rem; }
+    .text-danger { color: var(--danger); }
+    .text-success { color: var(--primary); }
+    .hidden { display: none !important; }
+    .alert { padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid; }
+    .alert-success { background: #dcfce7; color: #166534; border-left-color: #16a34a; }
+    .alert-error { background: #fee2e2; color: #991b1b; border-left-color: #dc2626; }
   </style>
 </head>
 <body>
 
-<!-- LOGIN SCREEN -->
 <div id="login-screen" class="login-screen">
   <div class="login-box">
     <h1>💰 Nosso Lar</h1>
@@ -383,25 +115,22 @@
   </div>
 </div>
 
-<!-- MAIN APP -->
 <div id="app" class="hidden">
   <div class="header">
     <h1>💰 Nosso Lar</h1>
-    <div class="header-actions">
-      <span id="sync-status" style="font-size: 12px; opacity: 0.8;"></span>
+    <div>
+      <span id="sync-status" style="font-size: 12px; opacity: 0.8; margin-right: 1rem;"></span>
       <button id="logout-btn" class="btn btn-secondary">Sair</button>
     </div>
   </div>
 
   <div class="app">
-    <!-- TABS -->
     <div class="tabs">
       <button class="tab active" data-tab="lancamentos">📝 Lançamentos</button>
       <button class="tab" data-tab="cartoes">💳 Cartões</button>
       <button class="tab" data-tab="visao-geral">📊 Visão Geral</button>
     </div>
 
-    <!-- LANÇAMENTOS -->
     <div id="lancamentos" class="content active">
       <div class="card">
         <h2>Lançamentos do Mês</h2>
@@ -417,25 +146,21 @@
               <th>Ações</th>
             </tr>
           </thead>
-          <tbody id="lancamentos-table">
-          </tbody>
+          <tbody id="lancamentos-table"></tbody>
         </table>
       </div>
     </div>
 
-    <!-- CARTÕES -->
     <div id="cartoes" class="content">
-      <div id="cartoes-container"></div>
+      <div class="card"><p>Funcionalidade em desenvolvimento...</p></div>
     </div>
 
-    <!-- VISÃO GERAL -->
     <div id="visao-geral" class="content">
       <div id="visao-container"></div>
     </div>
   </div>
 </div>
 
-<!-- MODAL: Novo Lançamento -->
 <div id="add-lancamento-modal" class="modal">
   <div class="modal-content">
     <div class="modal-header">
@@ -494,27 +219,21 @@
 </div>
 
 <script>
-  // ==================== CONFIG ====================
-  const SB_URL = 'https://qwlegnebejakwwuntyrd.supabase.co';
-  const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3bGVnbmViZWpha3d3dW50eXJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2OTUxODYsImV4cCI6MjA5MTI3MTE4Nn0.lkYjF5xXwS_XW8Wi-p0YBBOxY7Bjs_HDw7PIWDTcPYQ';
-  const EDGE_URL = 'https://qwlegnebejakwwuntyrd.supabase.co/functions/v1/nosso-lar';
+const SB_URL = 'https://qwlegnebejakwwuntyrd.supabase.co';
+const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3bGVnbmViZWpha3d3dW50eXJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2OTUxODYsImV4cCI6MjA5MTI3MTE4Nn0.lkYjF5xXwS_XW8Wi-p0YBBOxY7Bjs_HDw7PIWDTcPYQ';
+const EDGE_URL = 'https://qwlegnebejakwwuntyrd.supabase.co/functions/v1/nosso-lar';
 
-  // ==================== STATE ====================
-  let supabase = null;
-  let currentSession = null;
-  let appData = {
-    lancamentos: [],
-    cartoes: [],
-    meta: {}
-  };
+let sbClient = null;
+let currentSession = null;
+let appData = { lancamentos: [], cartoes: [], meta: {} };
 
-  // ==================== SUPABASE ====================
-  function initSupabase() {
-    supabase = window.supabase.createClient(SB_URL, SB_ANON);
-  }
+function initSupabase() {
+  sbClient = window.supabase.createClient(SB_URL, SB_ANON);
+}
 
-  async function checkAuth() {
-    const { data: { session } } = await supabase.auth.getSession();
+async function checkAuth() {
+  try {
+    const { data: { session } } = await sbClient.auth.getSession();
     if (session) {
       currentSession = session;
       showApp();
@@ -522,265 +241,241 @@
     } else {
       showLogin();
     }
-  }
-
-  async function login() {
-    const email = document.getElementById('login-email').value.trim();
-    if (!email) {
-      showMessage('Digite seu e-mail', 'error');
-      return;
-    }
-
-    const btn = document.getElementById('login-btn');
-    btn.disabled = true;
-    btn.textContent = 'Enviando...';
-
-    try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: window.location.origin + window.location.pathname
-        }
-      });
-
-      if (error) {
-        showMessage('Erro: ' + error.message, 'error');
-      } else {
-        showMessage('Link enviado! Verifique seu e-mail.', 'success');
-        document.getElementById('login-email').value = '';
-      }
-    } catch (err) {
-      showMessage('Erro ao enviar: ' + err.message, 'error');
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Enviar Link de Acesso';
-    }
-  }
-
-  async function logout() {
-    await supabase.auth.signOut();
-    currentSession = null;
+  } catch (err) {
+    console.error('Auth error:', err);
     showLogin();
   }
+}
 
-  // ==================== DATA ====================
-  async function loadData() {
-    try {
-      updateSyncStatus('Carregando...');
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const response = await fetch(EDGE_URL, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        appData = {
-          lancamentos: data.lancamentos || [],
-          cartoes: data.cartoes || [],
-          meta: data.meta || {}
-        };
-        renderAll();
-        updateSyncStatus('✅ Sincronizado');
-        setTimeout(() => updateSyncStatus(''), 3000);
-      }
-    } catch (err) {
-      updateSyncStatus('⚠️ Offline');
-      console.error('Erro ao carregar:', err);
-    }
+async function login() {
+  const email = document.getElementById('login-email').value.trim();
+  if (!email) {
+    showMessage('Digite seu e-mail', 'error');
+    return;
   }
 
-  async function saveData() {
-    try {
-      updateSyncStatus('💾 Salvando...');
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+  const btn = document.getElementById('login-btn');
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
 
-      const response = await fetch(EDGE_URL, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(appData)
-      });
-
-      if (response.ok) {
-        updateSyncStatus('✅ Salvo');
-        setTimeout(() => updateSyncStatus(''), 3000);
-      }
-    } catch (err) {
-      updateSyncStatus('⚠️ Erro ao salvar');
-      console.error('Erro:', err);
-    }
-  }
-
-  // ==================== UI ====================
-  function showLogin() {
-    document.getElementById('login-screen').style.display = 'flex';
-    document.getElementById('app').classList.add('hidden');
-  }
-
-  function showApp() {
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('app').classList.remove('hidden');
-  }
-
-  function showMessage(msg, type) {
-    const msgEl = document.getElementById('login-message');
-    msgEl.textContent = msg;
-    msgEl.className = 'alert alert-' + type;
-    setTimeout(() => {
-      msgEl.textContent = '';
-      msgEl.className = '';
-    }, 5000);
-  }
-
-  function updateSyncStatus(msg) {
-    document.getElementById('sync-status').textContent = msg;
-  }
-
-  function openModal(id) {
-    document.getElementById(id).classList.add('active');
-  }
-
-  function closeModal(id) {
-    document.getElementById(id).classList.remove('active');
-  }
-
-  // ==================== TABS ====================
-  document.querySelectorAll('.tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      const tabName = tab.dataset.tab;
-
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
-
-      tab.classList.add('active');
-      document.getElementById(tabName).classList.add('active');
+  try {
+    const { error } = await sbClient.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.origin + window.location.pathname }
     });
-  });
 
-  // ==================== LANÇAMENTOS ====================
-  document.getElementById('lancamento-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-
-    const novoLancamento = {
-      id: Date.now().toString(),
-      tipo: document.getElementById('lancamento-tipo').value,
-      data: document.getElementById('lancamento-data').value,
-      descricao: document.getElementById('lancamento-desc').value,
-      categoria: document.getElementById('lancamento-categoria').value,
-      valor: parseFloat(document.getElementById('lancamento-valor').value),
-      status: document.getElementById('lancamento-status').value
-    };
-
-    appData.lancamentos.push(novoLancamento);
-    await saveData();
-    renderLancamentos();
-    closeModal('add-lancamento-modal');
-    document.getElementById('lancamento-form').reset();
-    document.getElementById('lancamento-data').valueAsDate = new Date();
-  });
-
-  function renderLancamentos() {
-    const tbody = document.getElementById('lancamentos-table');
-    tbody.innerHTML = appData.lancamentos.map(l => `
-      <tr>
-        <td>${new Date(l.data).toLocaleDateString('pt-BR')}</td>
-        <td>${l.descricao}</td>
-        <td>${l.categoria}</td>
-        <td class="${l.tipo === 'entrada' ? 'text-success' : 'text-danger'}">
-          ${l.tipo === 'entrada' ? '+' : '-'} R$ ${l.valor.toFixed(2)}
-        </td>
-        <td><span class="badge">${l.status}</span></td>
-        <td>
-          <button class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 12px;" onclick="deleteLancamento('${l.id}')">
-            Deletar
-          </button>
-        </td>
-      </tr>
-    `).join('');
-  }
-
-  function deleteLancamento(id) {
-    if (confirm('Tem certeza?')) {
-      appData.lancamentos = appData.lancamentos.filter(l => l.id !== id);
-      saveData();
-      renderLancamentos();
+    if (error) {
+      showMessage('Erro: ' + error.message, 'error');
+    } else {
+      showMessage('Link enviado! Verifique seu e-mail.', 'success');
+      document.getElementById('login-email').value = '';
     }
+  } catch (err) {
+    showMessage('Erro: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Enviar Link de Acesso';
   }
+}
 
-  function openAddLancamentoModal() {
-    document.getElementById('lancamento-data').valueAsDate = new Date();
-    openModal('add-lancamento-modal');
+async function logout() {
+  await sbClient.auth.signOut();
+  currentSession = null;
+  showLogin();
+}
+
+async function loadData() {
+  try {
+    document.getElementById('sync-status').textContent = 'Carregando...';
+    const { data: { session } } = await sbClient.auth.getSession();
+    if (!session) return;
+
+    const response = await fetch(EDGE_URL, {
+      headers: { 'Authorization': `Bearer ${session.access_token}` }
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      appData = {
+        lancamentos: data.lancamentos || [],
+        cartoes: data.cartoes || [],
+        meta: data.meta || {}
+      };
+      renderAll();
+      document.getElementById('sync-status').textContent = '✅ Sincronizado';
+      setTimeout(() => {
+        document.getElementById('sync-status').textContent = '';
+      }, 3000);
+    }
+  } catch (err) {
+    document.getElementById('sync-status').textContent = '⚠️ Offline';
+    console.error('Load error:', err);
   }
+}
 
-  // ==================== CARTÕES ====================
-  function renderCartoes() {
-    const container = document.getElementById('cartoes-container');
-    container.innerHTML = '<div class="card"><p>Funcionalidade em desenvolvimento...</p></div>';
+async function saveData() {
+  try {
+    document.getElementById('sync-status').textContent = '💾 Salvando...';
+    const { data: { session } } = await sbClient.auth.getSession();
+    if (!session) return;
+
+    const response = await fetch(EDGE_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(appData)
+    });
+
+    if (response.ok) {
+      document.getElementById('sync-status').textContent = '✅ Salvo';
+      setTimeout(() => {
+        document.getElementById('sync-status').textContent = '';
+      }, 3000);
+    }
+  } catch (err) {
+    document.getElementById('sync-status').textContent = '⚠️ Erro';
+    console.error('Save error:', err);
   }
+}
 
-  // ==================== VISÃO GERAL ====================
-  function renderVisaoGeral() {
-    const container = document.getElementById('visao-container');
-    const totalEntradas = appData.lancamentos
-      .filter(l => l.tipo === 'entrada')
-      .reduce((sum, l) => sum + l.valor, 0);
-    const totalSaidas = appData.lancamentos
-      .filter(l => l.tipo === 'saida')
-      .reduce((sum, l) => sum + l.valor, 0);
+function showLogin() {
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app').classList.add('hidden');
+}
 
-    container.innerHTML = `
-      <div class="grid">
-        <div class="card">
-          <h2>Total Entradas</h2>
-          <p style="font-size: 24px; color: var(--primary); font-weight: 700;">
-            + R$ ${totalEntradas.toFixed(2)}
-          </p>
-        </div>
-        <div class="card">
-          <h2>Total Saídas</h2>
-          <p style="font-size: 24px; color: var(--danger); font-weight: 700;">
-            - R$ ${totalSaidas.toFixed(2)}
-          </p>
-        </div>
-        <div class="card">
-          <h2>Saldo</h2>
-          <p style="font-size: 24px; color: ${totalEntradas - totalSaidas >= 0 ? 'var(--primary)' : 'var(--danger)'}; font-weight: 700;">
-            R$ ${(totalEntradas - totalSaidas).toFixed(2)}
-          </p>
-        </div>
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').classList.remove('hidden');
+}
+
+function showMessage(msg, type) {
+  const el = document.getElementById('login-message');
+  el.className = `alert alert-${type}`;
+  el.textContent = msg;
+  setTimeout(() => {
+    el.className = '';
+    el.textContent = '';
+  }, 5000);
+}
+
+function openModal(id) {
+  document.getElementById(id).classList.add('active');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+
+function renderLancamentos() {
+  const tbody = document.getElementById('lancamentos-table');
+  tbody.innerHTML = appData.lancamentos.map(l => `
+    <tr>
+      <td>${new Date(l.data).toLocaleDateString('pt-BR')}</td>
+      <td>${l.descricao}</td>
+      <td>${l.categoria}</td>
+      <td class="${l.tipo === 'entrada' ? 'text-success' : 'text-danger'}">
+        ${l.tipo === 'entrada' ? '+' : '-'} R$ ${l.valor.toFixed(2)}
+      </td>
+      <td>${l.status}</td>
+      <td>
+        <button class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 12px;" onclick="deleteLancamento('${l.id}')">
+          Deletar
+        </button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function deleteLancamento(id) {
+  if (confirm('Tem certeza?')) {
+    appData.lancamentos = appData.lancamentos.filter(l => l.id !== id);
+    saveData();
+    renderLancamentos();
+  }
+}
+
+function renderVisaoGeral() {
+  const container = document.getElementById('visao-container');
+  const entradas = appData.lancamentos.filter(l => l.tipo === 'entrada').reduce((sum, l) => sum + l.valor, 0);
+  const saidas = appData.lancamentos.filter(l => l.tipo === 'saida').reduce((sum, l) => sum + l.valor, 0);
+
+  container.innerHTML = `
+    <div class="grid">
+      <div class="card">
+        <h2>Total Entradas</h2>
+        <p style="font-size: 24px; color: var(--primary); font-weight: 700;">+ R$ ${entradas.toFixed(2)}</p>
       </div>
-    `;
-  }
+      <div class="card">
+        <h2>Total Saídas</h2>
+        <p style="font-size: 24px; color: var(--danger); font-weight: 700;">- R$ ${saidas.toFixed(2)}</p>
+      </div>
+      <div class="card">
+        <h2>Saldo</h2>
+        <p style="font-size: 24px; color: ${entradas - saidas >= 0 ? 'var(--primary)' : 'var(--danger)'}; font-weight: 700;">
+          R$ ${(entradas - saidas).toFixed(2)}
+        </p>
+      </div>
+    </div>
+  `;
+}
 
-  // ==================== RENDER ALL ====================
-  function renderAll() {
-    renderLancamentos();
-    renderCartoes();
-    renderVisaoGeral();
-  }
+function renderAll() {
+  renderLancamentos();
+  renderVisaoGeral();
+}
 
-  // ==================== INIT ====================
-  window.addEventListener('DOMContentLoaded', () => {
-    initSupabase();
-    checkAuth();
+function openAddLancamentoModal() {
+  document.getElementById('lancamento-data').valueAsDate = new Date();
+  openModal('add-lancamento-modal');
+}
 
-    const loginBtn = document.getElementById('login-btn');
-    if (loginBtn) {
-      loginBtn.addEventListener('click', login);
-    }
-
-    const logoutBtn = document.getElementById('logout-btn');
-    if (logoutBtn) {
-      logoutBtn.addEventListener('click', logout);
-    }
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const tabName = tab.dataset.tab;
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tabName).classList.add('active');
   });
+});
+
+document.getElementById('lancamento-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const novoLancamento = {
+    id: Date.now().toString(),
+    tipo: document.getElementById('lancamento-tipo').value,
+    data: document.getElementById('lancamento-data').value,
+    descricao: document.getElementById('lancamento-desc').value,
+    categoria: document.getElementById('lancamento-categoria').value,
+    valor: parseFloat(document.getElementById('lancamento-valor').value),
+    status: document.getElementById('lancamento-status').value
+  };
+
+  appData.lancamentos.push(novoLancamento);
+  await saveData();
+  renderLancamentos();
+  closeModal('add-lancamento-modal');
+  document.getElementById('lancamento-form').reset();
+  document.getElementById('lancamento-data').valueAsDate = new Date();
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  initSupabase();
+  checkAuth();
+
+  const loginBtn = document.getElementById('login-btn');
+  if (loginBtn) {
+    loginBtn.addEventListener('click', login);
+  }
+
+  const logoutBtn = document.getElementById('logout-btn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', logout);
+  }
+});
 </script>
 
 </body>
