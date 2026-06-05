@@ -448,19 +448,14 @@ button,a,[role="button"]{min-width:44px;min-height:44px;display:inline-flex;alig
   </div>
   <span id="sync-status" style="font-size:12px;font-weight:700;min-width:80px;text-align:center;background:rgba(0,0,0,.2);border-radius:99px;padding:3px 10px;transition:all .3s" aria-live="polite" aria-label="Status de sincronização"></span>
   <button class="btn g" onclick="openModal()" aria-label="Adicionar novo lançamento">+ Lançamento</button>
-  <button id="toggle-dashboard" onclick="toggleDashboard()" data-tooltip="Alternar para visão clássica" aria-label="Alternar dashboard" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:.3rem .6rem;color:#fff;font-size:14px;cursor:pointer;line-height:1;transition:all .2s">📊</button>
   <button onclick="toggleDarkMode()" data-tooltip="Alternar tema escuro" aria-label="Alternar tema" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:.3rem .6rem;color:#fff;font-size:16px;cursor:pointer;line-height:1;transition:all .2s" id="theme-toggle">🌙</button>
   <button onclick="doLogout()" data-tooltip="Sair da conta" aria-label="Sair da conta" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:.3rem .6rem;color:#fff;font-size:14px;cursor:pointer;line-height:1;transition:all .2s">⏻</button>
 </div>
 
-<!-- DASHBOARD CONTAINER (NEW) -->
-<div id="dashboard-container" style="display:block;min-height:100vh;background:var(--bg)"></div>
-
 <!-- DESKTOP TABS NAV -->
-<div class="desktop-tabs visible" id="desktop-tabs" role="tablist" aria-label="Navegação principal" style="display:none">
+<div class="desktop-tabs visible" id="desktop-tabs" role="tablist" aria-label="Navegação principal">
   <button class="desktop-tab active" data-page="lancamentos" data-tooltip="Visualizar e gerenciar lançamentos" onclick="(async()=>await switchPage('lancamentos'))()" role="tab" aria-selected="true" aria-controls="page-lancamentos" id="tab-lancamentos">📝 Lançamentos</button>
-  <button class="desktop-tab" data-page="cartoes-credito" data-tooltip="Análise detalhada de cartões de crédito" onclick="(async()=>await switchPage('cartoes-credito'))()" role="tab" aria-selected="false" aria-controls="page-cartoes-credito" id="tab-cartoes-credito">💳 Cartões de Crédito</button>
-  <button class="desktop-tab" data-page="cartoes" data-tooltip="Consultar saldos e limites dos cartões" onclick="(async()=>await switchPage('cartoes'))()" role="tab" aria-selected="false" aria-controls="page-cartoes" id="tab-cartoes">📋 Faturas</button>
+  <button class="desktop-tab" data-page="cartoes" data-tooltip="Consultar saldos e limites dos cartões" onclick="(async()=>await switchPage('cartoes'))()" role="tab" aria-selected="false" aria-controls="page-cartoes" id="tab-cartoes">💳 Cartões</button>
   <button class="desktop-tab" data-page="visao-geral" data-tooltip="Ver gráficos e resumo financeiro" onclick="(async()=>await switchPage('visao-geral'))()" role="tab" aria-selected="false" aria-controls="page-visao-geral" id="tab-visao-geral">📊 Visão Geral</button>
 </div>
 
@@ -468,17 +463,14 @@ button,a,[role="button"]{min-width:44px;min-height:44px;display:inline-flex;alig
 <div class="page-container active" id="page-lancamentos" role="tabpanel" aria-labelledby="tab-lancamentos"></div>
 <!-- FIM LANÇAMENTOS -->
 
-<!-- PÁGINA 2: CARTÕES DE CRÉDITO (NOVO) -->
-<div class="page-container" id="page-cartoes-credito" role="tabpanel" aria-labelledby="tab-cartoes-credito"></div>
-<!-- FIM CARTÕES DE CRÉDITO -->
-
-<!-- PÁGINA 3: FATURAS -->
+<!-- PÁGINA 2: CARTÕES -->
 <div class="page-container" id="page-cartoes" role="tabpanel" aria-labelledby="tab-cartoes"></div>
-<!-- FIM FATURAS -->
+<!-- FIM CARTÕES -->
 
-<!-- PÁGINA 4: VISÃO GERAL -->
+<!-- PÁGINA 3: VISÃO GERAL -->
 <div class="page-container" id="page-visao-geral" role="tabpanel" aria-labelledby="tab-visao-geral"></div>
 <!-- FIM VISÃO GERAL -->
+
 
 <!-- BOTTOM TAB BAR -->
 </div><!-- /app-root -->
@@ -552,85 +544,6 @@ const hoje=new Date();
 let mes=hoje.getFullYear()+'-'+String(hoje.getMonth()+1).padStart(2,'0');
 let fil='todos',eid=null,D={},dd=null,ocultarPagos=false;
 
-// CONFIG: Constantes e configurações centralizadas
-const CONFIG={
-  // Chaves do localStorage
-  storage:{
-    backup:'nosso-lar-backup',
-    theme:'nosso-lar-theme'
-  },
-  // Limites de tabela
-  table:{
-    maxRows:100,
-    lineHeightPx:28,
-    rowPaddingRem:0.4
-  },
-  // Períodos e datas
-  date:{
-    monthsToShow:12,
-    dateFormat:'DD/MM',
-    dateFormatISO:'YYYY-MM-DD'
-  },
-  // Parcelamentos padrão
-  installments:{
-    defaultCount:12,
-    minCount:1,
-    maxCount:60
-  },
-  // Cartões padrão
-  cards:{
-    defaultClosureDay:13,
-    defaultDueDay:20,
-    defaultLimit:5000
-  }
-};
-
-// TEMPLATES: Funções para renderizar componentes HTML
-const TEMPLATES={
-  // Status badge com cor
-  statusBadge:(status)=>{
-    const statusObj=SO.find(s=>s.v===status);
-    if(!statusObj)return '';
-    return `<span style="display:inline-block;padding:4px 8px;border-radius:6px;background:${statusObj.d};color:${statusObj.c};font-size:11px;font-weight:500;border:1px solid ${statusObj.c}">${statusObj.l}</span>`;
-  },
-
-  // Card de transação
-  transactionCard:(item)=>{
-    const status=SL[item.status]||item.status;
-    const cat=CI[item.categoria]||'📦';
-    return `<div class="cc" style="padding:12px;border-radius:8px;background:var(--bg);border:1px solid var(--b);margin-bottom:8px">
-      <div style="display:flex;justify-content:space-between;align-items:start">
-        <div style="flex:1">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <span style="font-size:16px">${cat}</span>
-            <span style="font-weight:600;color:var(--t)">${item.descricao||'Sem descrição'}</span>
-          </div>
-          <div style="font-size:12px;color:var(--t2)">${item.categoria||'Outros'} • ${status}</div>
-        </div>
-        <div style="text-align:right">
-          <div style="font-weight:600;color:${item.tipo==='in'?'var(--g)':'var(--r)'}">R$ ${Math.abs(item.valor).toFixed(2)}</div>
-        </div>
-      </div>
-    </div>`;
-  },
-
-  // Modal header
-  modalHeader:(title,onClose)=>{
-    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:16px;border-bottom:1px solid var(--b)">
-      <h3 style="margin:0;font-size:18px;font-weight:600">${title}</h3>
-      <button onclick="${onClose}" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--t2)">✕</button>
-    </div>`;
-  },
-
-  // Modal footer com botões
-  modalFooter:(cancelText='Cancelar',saveText='Salvar',onCancel,onSave)=>{
-    return `<div style="display:flex;gap:8px;padding:16px;border-top:1px solid var(--b);background:var(--bg)">
-      <button onclick="${onCancel}" style="flex:1;padding:8px 16px;border:1px solid var(--b);background:var(--w);border-radius:6px;cursor:pointer;font-weight:500">${cancelText}</button>
-      <button onclick="${onSave}" style="flex:1;padding:8px 16px;background:var(--g);color:var(--w);border:none;border-radius:6px;cursor:pointer;font-weight:500">${saveText}</button>
-    </div>`;
-  }
-};
-
 const CARTOES_DEFAULT=[
   {id:'itau',nome:'Itaú',cor:'#ec7000',emoji:'🟠',fechamento:13,vencimento:20},
   {id:'santander',nome:'Way Santander',cor:'#cc0000',emoji:'🔴',fechamento:24,vencimento:1},
@@ -673,10 +586,7 @@ const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJl
 let _sb=null,_session=null;
 function getSB(){if(!_sb){const s=window.supabase||(typeof supabase!=='undefined'?supabase:null);if(s)_sb=s.createClient(SB_URL2,SB_ANON,{auth:{detectSessionInUrl:true,persistSession:true,autoRefreshToken:true}});}return _sb;}
 async function getAuthHeader(){const sb=getSB();if(!sb)return{};const{data}=await sb.auth.getSession();const t=data?.session?.access_token;return t?{'Authorization':'Bearer '+t}:{};}
-async function checkAuth(){
-  // Autenticação desativada - acesso direto ao app
-  showApp();
-}
+async function checkAuth(){const sb=getSB();if(!sb){console.warn('⚠️ Supabase não carregado');showApp();return;}const{data:{session}}=await sb.auth.getSession();if(session){console.log('✅ Usuário autenticado:', session.user?.email);_session=session;if(window.location.hash.includes('access_token'))window.history.replaceState(null,'',window.location.pathname);showApp();}else{console.log('❌ Usuário não autenticado');showLogin();}}
 function showLogin(){document.getElementById('login-screen').style.display='flex';document.getElementById('app-root').style.display='none';setTimeout(()=>document.getElementById('login-email')?.focus(),200);}
 function showApp(){document.getElementById('login-screen').style.display='none';document.getElementById('app-root').style.display='block';}
 async function sendMagicLink(){const eEl=document.getElementById('login-email');const btn=document.getElementById('login-btn');const err=document.getElementById('login-err');const email=eEl?.value.trim();if(!email){showLE('Digite seu e-mail');return;}if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){showLE('E-mail inválido');return;}btn.textContent='Enviando…';btn.style.opacity='.7';btn.disabled=true;err.style.display='none';const sb=getSB();const redir=window.location.origin+window.location.pathname;const{error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:redir}});if(error){btn.textContent='Enviar link de acesso ✉️';btn.style.opacity='1';btn.disabled=false;showLE(error.message);return;}document.getElementById('login-step-email').style.display='none';document.getElementById('login-sent-email').innerHTML='Enviamos um link para <strong>'+email+'</strong><br>Abra o e-mail e clique no link para entrar.';document.getElementById('login-step-sent').style.display='flex';}
@@ -684,16 +594,88 @@ function showLE(m){const e=document.getElementById('login-err');if(e){e.textCont
 async function doLogout(){const sb=getSB();if(sb)await sb.auth.signOut();_session=null;showLogin();}
 
 function syncStatus(msg,color){const el=document.getElementById('sync-status');if(!el)return;el.textContent=msg;el.style.color=color||'rgba(255,255,255,.9)';}
-async function loadFromDB(){try{const h=await getAuthHeader();if(!h.Authorization){throw new Error('No auth token');}const r=await fetch(EDGE_URL,{headers:h,timeout:5000});if(r.status===401||r.status===403){throw new Error('Auth failed ('+r.status+')');}if(!r.ok){throw new Error('HTTP '+r.status);}const saved=await r.json();const firstMonth=Object.entries(saved).find(([k,v])=>Array.isArray(v)&&v.length>0);if(firstMonth){}const hasRealData=saved&&typeof saved==='object'&&Object.keys(saved).filter(k=>k!=='month').length>0;if(hasRealData){Object.entries(saved).forEach(([k,v])=>{if(Array.isArray(v)){if(!D[k])D[k]=[];v.forEach(sv=>{const i=D[k].findIndex(e=>e.id===sv.id);if(i>=0)Object.assign(D[k][i],sv);else D[k].push(sv);});}else if(v&&typeof v==='object'&&!Array.isArray(v)){D[k]=Object.assign(D[k]||{},v);}});saveToLocalStorage();}else{throw new Error('Empty response');}syncStatus('✅ sincronizado','rgba(255,255,255,.9)');setTimeout(()=>syncStatus(''),3000);}catch(e){try{const stored=localStorage.getItem(CONFIG.storage.backup);if(stored){const backup=JSON.parse(stored);if(backup&&Object.keys(backup).length>2){Object.assign(D,backup);syncStatus('⚠ Usando dados do backup local','#fbbf24');setTimeout(()=>syncStatus(''),5000);return;}}}catch(parseErr){toast('⚠️ Backup local corrompido','warning');}initializeDefaultData();syncStatus('⚠ conexão falhou - usando dados padrão','#fbbf24');setTimeout(()=>syncStatus(''),5000);}}
-function saveToLocalStorage(){try{localStorage.setItem(CONFIG.storage.backup,JSON.stringify(D));}catch(e){if(e.name==='QuotaExceededError'){toast('⚠️ Armazenamento local cheio','warning');}else if(e.name==='SecurityError'){toast('⚠️ Sem permissão de armazenamento','error');}else{toast('⚠️ Erro ao salvar backup local','warning');}}}
+async function loadFromDB(){try{console.log('📡 CARREGAMENTO: Tentativa 1 - Supabase Edge Function');const h=await getAuthHeader();if(!h.Authorization){console.warn('❌ Sem token de autenticação, pulando Supabase');throw new Error('No auth token');}const r=await fetch(EDGE_URL,{headers:h,timeout:5000});console.log('📥 Resposta Supabase:', r.status);if(r.status===401||r.status===403){console.warn('⚠️ Não autenticado (401/403)');throw new Error('Auth failed');}if(!r.ok){console.warn('⚠️ Edge Function erro HTTP '+r.status);throw new Error('HTTP '+r.status);}const saved=await r.json();console.log('💾 Dados brutos:', JSON.stringify(saved).slice(0,200)+'...');const hasRealData=saved&&typeof saved==='object'&&Object.keys(saved).filter(k=>k!=='month').length>0;if(hasRealData){console.log('✅ Dados válidos do Supabase');Object.entries(saved).forEach(([k,v])=>{if(Array.isArray(v)){if(!D[k])D[k]=[];v.forEach(sv=>{const i=D[k].findIndex(e=>e.id===sv.id);if(i>=0)Object.assign(D[k][i],sv);else D[k].push(sv);});}else if(v&&typeof v==='object'&&!Array.isArray(v)){D[k]=Object.assign(D[k]||{},v);}});console.log('✅ Dados Supabase carregados em D');saveToLocalStorage();}else{console.log('⚠️ Dados vazios do Supabase, tentando localStorage...');throw new Error('Empty response');}syncStatus('✅ sincronizado','rgba(255,255,255,.9)');setTimeout(()=>syncStatus(''),3000);}catch(e){console.warn('❌ Supabase falhou:',e.message);try{console.log('📡 CARREGAMENTO: Tentativa 2 - localStorage');const stored=localStorage.getItem('nosso-lar-backup');if(stored){const backup=JSON.parse(stored);if(backup&&Object.keys(backup).length>2){console.log('✅ Dados encontrados em localStorage');Object.assign(D,backup);return;}}else{console.log('⚠️ localStorage vazio')}}catch(e2){console.error('❌ localStorage falhou:',e2.message);}console.log('📡 CARREGAMENTO: Tentativa 3 - Dados padrão');initializeDefaultData();syncStatus('⚠ conexão falhou - usando dados padrão','#fbbf24');setTimeout(()=>syncStatus(''),5000);}}
+function saveToLocalStorage(){try{localStorage.setItem('nosso-lar-backup',JSON.stringify(D));console.log('💾 Backup salvo em localStorage');}catch(e){console.warn('⚠️ localStorage indisponível:',e.message);}}
 
 let _st=null;
-function saveData(){clearTimeout(_st);syncStatus('💾 salvando…','rgba(255,255,255,.7)');_st=setTimeout(async()=>{try{const h=await getAuthHeader();const r=await fetch(EDGE_URL,{method:'POST',headers:{...h,'Content-Type':'application/json'},body:JSON.stringify(D)});if(!r.ok)throw new Error('HTTP '+r.status);const resp=await r.json();saveToLocalStorage();syncStatus('✅ salvo','#fff');setTimeout(()=>syncStatus(''),3000);}catch(e){saveToLocalStorage();syncStatus('⚠ salvo localmente','#fbbf24');}},2000);}
+function saveData(){clearTimeout(_st);syncStatus('💾 salvando…','rgba(255,255,255,.7)');_st=setTimeout(async()=>{try{const h=await getAuthHeader();console.log('💾 Salvando dados:', Object.keys(D).length,'chaves');const r=await fetch(EDGE_URL,{method:'POST',headers:{...h,'Content-Type':'application/json'},body:JSON.stringify(D)});console.log('📤 POST resposta:', r.status);if(!r.ok)throw new Error('HTTP '+r.status);const resp=await r.json();console.log('✅ Edge Function respondeu');saveToLocalStorage();syncStatus('✅ salvo','#fff');setTimeout(()=>syncStatus(''),3000);}catch(e){console.error('❌ Erro ao salvar em Supabase:',e.message);saveToLocalStorage();syncStatus('⚠ salvo localmente','#fbbf24');}},2000);}
 
-function initializeDefaultData(){syncStatus('❌ sem dados - Edge Function vazia','#dc2626');}
+function initializeDefaultData(){console.log('❌ ERRO CRÍTICO: Nenhum dado disponível');console.error('Edge Function não retornou dados reais para o usuário');syncStatus('❌ sem dados - Edge Function vazia','#dc2626');}
 
 /* ── DIAGNÓSTICO ── */
-async function testConnection(){const sb=getSB();if(!sb)return;try{const{data:{session}}=await sb.auth.getSession();const h=await getAuthHeader();const r=await fetch(EDGE_URL,{headers:h});if(!r.ok)throw new Error('Connection failed');const data=await r.json();}catch(e){if(DEBUG_MODE)toast('Erro de conexão','error');}}
+async function testConnection(){console.log('🔧 === TESTE DE CONEXÃO ===');console.log('1️⃣ Testando Supabase...');const sb=getSB();console.log('   Supabase carregado:', sb?'✅ Sim':'❌ Não');if(!sb)return;console.log('2️⃣ Testando autenticação...');const{data:{session}}=await sb.auth.getSession();console.log('   Usuário autenticado:', session?'✅ '+session.user?.email:'❌ Não');console.log('3️⃣ Testando Auth Header...');const h=await getAuthHeader();console.log('   Auth header:', Object.keys(h).length>0?'✅ Presente':'❌ Vazio');console.log('4️⃣ Testando Edge Function...');try{const r=await fetch(EDGE_URL,{headers:h});console.log('   Status HTTP:', r.status);if(r.ok){const data=await r.json();console.log('   Dados retornados:', data?Object.keys(data).length:'0','chaves');}}catch(e){console.error('   Erro:', e.message);}console.log('=== FIM DO TESTE ===');}
+window.testConnection=testConnection;
+
+/* ── DEBUG TOOLS ── */
+window.debugCartoes=()=>{
+  console.log('%c═══ DEBUG CARTÕES ═══', 'color: #1DB954; font-weight: bold; font-size: 14px');
+  console.log('📋 Cartões:', getCartoes());
+  console.log('💾 D._faturas (por mês/cartão):', D._faturas);
+  console.log('💳 D._limites (limites):', D._limites);
+  console.log('📊 D._faturasRaw (brutos):', D._faturasRaw?.length||0, 'itens');
+  if(D._faturasRaw?.length>0){
+    console.log('Amostra (primeiras 3):', D._faturasRaw.slice(0,3));
+    console.log('Total por mês:', Object.keys(D._faturas||{}).sort());
+  } else {
+    console.warn('⚠️ Nenhum dado disponível!');
+  }
+};
+
+window.recarregarFaturas=async()=>{
+  console.log('%c🔄 RECARREGANDO FATURAS DO SUPABASE', 'color: #0070c0; font-weight: bold; font-size: 14px');
+  D._faturas={};
+  D._limites={};
+  D._faturasRaw=[];
+  await fetchFaturasFromSupabase();
+  console.log('✅ Faturas recarregadas');
+  await renderCartoesDesktopNovo();
+  console.log('✅ Página renderizada');
+  if(D._faturasRaw?.length>0){
+    toast('✅ '+D._faturasRaw.length+' faturas carregadas!', 'success');
+  } else {
+    toast('⚠️ Nenhuma fatura no Supabase', 'warning');
+  }
+};
+
+window.verificarSupabase=async()=>{
+  console.log('%c🔍 VERIFICANDO SUPABASE DIRETAMENTE', 'color: #9333ea; font-weight: bold; font-size: 14px');
+  const sb=getSB();
+  if(!sb){
+    console.error('❌ Supabase não disponível');
+    return;
+  }
+
+  try{
+    console.log('Consultando nosso_lar_faturas...');
+    const{data,error}=await sb.from('nosso_lar_faturas').select('*');
+
+    if(error){
+      console.error('%c❌ ERRO NA TABELA', 'color: #dc2626; font-weight: bold', error);
+      return;
+    }
+
+    console.log('%c✅ RESULTADO DIRETO DO SUPABASE:', 'color: #1DB954; font-weight: bold');
+    console.log('Total de linhas:', data?.length||0);
+    console.log('Estrutura da primeira linha:', data?.[0]);
+    console.log('Todos os dados:', data);
+
+    // Verificar campos
+    if(data?.length>0){
+      const primeira=data[0];
+      console.log('%c📋 Campos encontrados:', 'color: #0070c0; font-weight: bold');
+      console.log('Campos:', Object.keys(primeira));
+    }
+  }catch(e){
+    console.error('%c❌ ERRO CRÍTICO', 'color: #dc2626; font-weight: bold', e);
+  }
+};
+window.forcarCarregamentoFaturas=async()=>{
+  console.log('🔄 Forçando carregamento de faturas...');
+  await fetchFaturasFromSupabase();
+  console.log('✅ Faturas recarregadas');
+  await renderCartoesDesktopNovo();
+  console.log('✅ Página re-renderizada');
+};
 
 function showNotification(msg){
   // Usa o novo sistema de toast
@@ -995,35 +977,25 @@ function navMes(dir){
   if(novo)changeMes(novo);
 }
 let _pickerOpen=false;
-let _pickerCloseHandler=null;
-function removePickerListener(){
-  if(_pickerCloseHandler){
-    document.removeEventListener('click',_pickerCloseHandler);
-    document.removeEventListener('touchend',_pickerCloseHandler);
-    _pickerCloseHandler=null;
-  }
-}
 function toggleNavPicker(e){
   if(e){e.stopPropagation();e.preventDefault();}
   _pickerOpen=!_pickerOpen;
   const p=document.getElementById('nav-picker');
   p.style.display=_pickerOpen?'block':'none';
   if(_pickerOpen){
-    buildSel();
-    removePickerListener();
+    buildSel(); // rebuid picker contents when opening
     setTimeout(()=>{
-      _pickerCloseHandler=(ev)=>{
+      function h(ev){
         if(!document.getElementById('nav-mes').contains(ev.target)){
           _pickerOpen=false;
           document.getElementById('nav-picker').style.display='none';
-          removePickerListener();
+          document.removeEventListener('click',h);
+          document.removeEventListener('touchend',h);
         }
-      };
-      document.addEventListener('click',_pickerCloseHandler);
-      document.addEventListener('touchend',_pickerCloseHandler);
+      }
+      document.addEventListener('click',h);
+      document.addEventListener('touchend',h);
     },50);
-  }else{
-    removePickerListener();
   }
 }
 function changeMes(m){mes=m;fil='todos';closeDd();_pickerOpen=false;const p=document.getElementById('nav-picker');if(p)p.style.display='none';document.querySelectorAll('.pill').forEach(b=>b.classList.remove('on'));document.querySelector('[data-f="todos"]').classList.add('on');buildSel();render();renderSide();}
@@ -1088,7 +1060,7 @@ function render(){
   if(headerEl)headerEl.textContent=MN[+mes.slice(5)-1];
   closeDd();
   const all=rows();let list=[...all];
-  
+  console.log('🔍 render() - Lançamentos encontrados:', all.length, 'no mês', mes, '| Dados em D:', Object.keys(D).length > 0 ? 'SIM' : 'VAZIO');
   const srchEl=document.getElementById('srch')||document.getElementById('srch-m');
   const q=(srchEl?.value||'').toLowerCase();
   if(q)list=list.filter(r=>r.desc.toLowerCase().includes(q)||(r.obs||'').toLowerCase().includes(q));
@@ -1236,14 +1208,14 @@ function renderSideGeral(){
     +'</div>'
     +'<div class="card"><div class="sh"><div class="si2" style="background:#f3e5f5">🚗</div><div class="st">Spin — Porto Seguro</div></div>'
     +'<div style="font-size:13px;color:var(--t2)">Parcelas quitadas</div>'
-    +'<div style="font-size:22px;font-weight:700;margin:4px 0 2px">'+((D._meta||{}).spinParcelasPagas||36)+' <span style="font-size:14px;font-weight:400;color:var(--t3)">de '+((D._meta||{}).spinParcelasTotal||48)+'</span></div>'
-    +'<div class="pb2"><div class="pf" style="width:'+(((D._meta||{}).spinParcelasPagas||36)/((D._meta||{}).spinParcelasTotal||48)*100)+'%;background:#9c27b0"></div></div>'
-    +'<div class="ins"><div class="in2"><div class="l">Parcelas abertas</div><div class="v">'+(((D._meta||{}).spinParcelasTotal||48)-((D._meta||{}).spinParcelasPagas||36))+'</div></div><div class="in2"><div class="l">Saldo restante</div><div class="v" style="color:var(--r)">'+fv((D._meta||{}).saldoSpin||0)+'</div></div><div class="in2"><div class="l">Parcela mensal</div><div class="v">'+fv((D._meta||{}).parcelaSpinMensal||0)+'</div></div><div class="in2"><div class="l">Quitação</div><div class="v" style="font-size:12px">'+((D._meta||{}).quitacaoSpin||'—')+'</div></div></div></div>'
+    +'<div style="font-size:22px;font-weight:700;margin:4px 0 2px">36 <span style="font-size:14px;font-weight:400;color:var(--t3)">de 48</span></div>'
+    +'<div class="pb2"><div class="pf" style="width:75%;background:#9c27b0"></div></div>'
+    +'<div class="ins"><div class="in2"><div class="l">Parcelas abertas</div><div class="v">12</div></div><div class="in2"><div class="l">Saldo restante</div><div class="v" style="color:var(--r)">'+fv(27466.20)+'</div></div><div class="in2"><div class="l">Parcela mensal</div><div class="v">'+fv(2288.85)+'</div></div><div class="in2"><div class="l">Quitação</div><div class="v" style="font-size:12px">Set/2026</div></div></div></div>'
     +'<div class="card"><div class="sh"><div class="si2" style="background:#e8f5e9">🏡</div><div class="st">Imóvel</div></div>'
     +'<div style="font-size:13px;color:var(--t2)">Parcelas quitadas</div>'
-    +'<div style="font-size:22px;font-weight:700;margin:4px 0 2px">'+((D._meta||{}).imovelParcelasPagas||4)+' <span style="font-size:14px;font-weight:400;color:var(--t3)">de '+((D._meta||{}).imovelParcelasTotal||163)+'</span></div>'
-    +'<div class="pb2"><div class="pf" style="width:'+(((D._meta||{}).imovelParcelasPagas||4)/((D._meta||{}).imovelParcelasTotal||163)*100)+'%;background:var(--g)"></div></div>'
-    +'<div class="ins"><div class="in2"><div class="l">Valor total</div><div class="v">'+fv((D._meta||{}).valorImovel||0)+'</div></div><div class="in2"><div class="l">Saldo restante</div><div class="v">'+fv((D._meta||{}).saldoImovel||0)+'</div></div><div class="in2"><div class="l">Parcela mensal</div><div class="v">'+fv((D._meta||{}).parcelaImovelMensal||0)+'</div></div><div class="in2"><div class="l">Pago total</div><div class="v" style="color:var(--g)">'+fv((D._meta||{}).pagotoImovel||0)+'</div></div></div></div>';
+    +'<div style="font-size:22px;font-weight:700;margin:4px 0 2px">4 <span style="font-size:14px;font-weight:400;color:var(--t3)">de 163</span></div>'
+    +'<div class="pb2"><div class="pf" style="width:2.4%;background:var(--g)"></div></div>'
+    +'<div class="ins"><div class="in2"><div class="l">Valor total</div><div class="v">R$ 570.000</div></div><div class="in2"><div class="l">Saldo restante</div><div class="v">R$ 556.000</div></div><div class="in2"><div class="l">Parcela mensal</div><div class="v">R$ 3.500</div></div><div class="in2"><div class="l">Pago total</div><div class="v" style="color:var(--g)">R$ 14.000</div></div></div></div>';
 }
 
 function buildCardItem(c,showPayBtn,compact){
@@ -1368,7 +1340,7 @@ function buildChartCartaoComFiltro(cartoes,data){
   });
 
   return '<svg viewBox="0 0 '+W+' '+H+'" width="100%" style="display:block">'+s+'</svg>';
-  }catch(e){return '<div style="padding:1rem;color:red">Erro ao renderizar gráfico: '+e.message+'</div>';}
+  }catch(e){console.error('Erro em buildChartCartaoComFiltro:',e);return '<div style="padding:1rem;color:red">Erro ao renderizar gráfico: '+e.message+'</div>';}
 }
 
 function buildCategoriesTable(){
@@ -1426,7 +1398,7 @@ function buildCategoriesTable(){
   html+='</tr></tbody></table></div>';
 
   return html;
-  }catch(e){return '<div style="padding:1rem;color:red">Erro ao renderizar tabela: '+e.message+'</div>';}
+  }catch(e){console.error('Erro em buildCategoriesTable:',e);return '<div style="padding:1rem;color:red">Erro ao renderizar tabela: '+e.message+'</div>';}
 }
 
 /* ── CARTÕES RICH ── */
@@ -1813,8 +1785,9 @@ function renderGestaoCartoes(){
   </div>`;
 
   el.innerHTML=html;
-  }catch(e){el.innerHTML='<div style="padding:1rem;color:red">Erro ao renderizar cartões: '+e.message+'</div>';}
+  }catch(e){console.error('Erro em renderGestaoCartoes:',e);el.innerHTML='<div style="padding:1rem;color:red">Erro ao renderizar cartões: '+e.message+'</div>';}
 }
+
 
 function renderSide(){
   const all=rows();
@@ -1835,8 +1808,8 @@ function renderSide(){
     +'<div class="card"><div class="sh"><div class="si2" style="background:#fee2e2">📊</div><div class="st">Maiores gastos</div></div>'
     +top.map(([c,v])=>'<div class="cs"><div style="width:28px;height:28px;border-radius:8px;background:'+(CC[c]||'#9e9e9e')+'22;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">'+(CI[c]||'📦')+'</div><div class="cbw"><div class="cbl"><span>'+c+'</span><span>− '+fv(v)+'</span></div><div class="cbb"><div class="cbf" style="width:'+Math.round(v/mx*100)+'%;background:'+(CC[c]||'#9e9e9e')+'"></div></div></div></div>').join('')
     +'</div>'
-    +'<div class="card"><div class="sh"><div class="si2" style="background:#f3e5f5">🚗</div><div class="st">Spin — Porto Seguro</div></div><div style="font-size:13px;color:var(--t2)">Parcelas quitadas</div><div style="font-size:22px;font-weight:700;margin:4px 0 2px">36 <span style="font-size:14px;font-weight:400;color:var(--t3)">de 48</span></div><div class="pb2"><div class="pf" style="width:75%;background:#9c27b0"></div></div><div class="ins"><div class="in2"><div class="l">Parcelas abertas</div><div class="v">12</div></div><div class="in2"><div class="l">Saldo restante</div><div class="v" style="color:var(--r)">'+fv((D._meta||{}).saldoSpin||0)+'</div></div><div class="in2"><div class="l">Parcela mensal</div><div class="v">'+fv((D._meta||{}).parcelaSpinMensal||0)+'</div></div><div class="in2"><div class="l">Quitação</div><div class="v" style="font-size:12px">'+((D._meta||{}).quitacaoSpin||"—")+'</div></div></div></div>'
-    +'<div class="card"><div class="sh"><div class="si2" style="background:#e8f5e9">🏡</div><div class="st">Imóvel</div></div><div style="font-size:13px;color:var(--t2)">Parcelas quitadas</div><div style="font-size:22px;font-weight:700;margin:4px 0 2px">4 <span style="font-size:14px;font-weight:400;color:var(--t3)">de 163</span></div><div class="pb2"><div class="pf" style="width:2.4%;background:var(--g)"></div></div><div class="ins"><div class="in2"><div class="l">Valor total</div><div class="v">'+fv((D._meta||{}).valorImovel||0)+'</div></div><div class="in2"><div class="l">Saldo restante</div><div class="v">'+fv((D._meta||{}).saldoImovel||0)+'</div></div><div class="in2"><div class="l">Parcela mensal</div><div class="v">'+fv((D._meta||{}).parcelaImovelMensal||0)+'</div></div><div class="in2"><div class="l">Pago total</div><div class="v" style="color:var(--g)">'+fv((D._meta||{}).pagotoImovel||0)+'</div></div></div></div>'
+    +'<div class="card"><div class="sh"><div class="si2" style="background:#f3e5f5">🚗</div><div class="st">Spin — Porto Seguro</div></div><div style="font-size:13px;color:var(--t2)">Parcelas quitadas</div><div style="font-size:22px;font-weight:700;margin:4px 0 2px">36 <span style="font-size:14px;font-weight:400;color:var(--t3)">de 48</span></div><div class="pb2"><div class="pf" style="width:75%;background:#9c27b0"></div></div><div class="ins"><div class="in2"><div class="l">Parcelas abertas</div><div class="v">12</div></div><div class="in2"><div class="l">Saldo restante</div><div class="v" style="color:var(--r)">'+fv(27466.20)+'</div></div><div class="in2"><div class="l">Parcela mensal</div><div class="v">'+fv(2288.85)+'</div></div><div class="in2"><div class="l">Quitação</div><div class="v" style="font-size:12px">Set/2026</div></div></div></div>'
+    +'<div class="card"><div class="sh"><div class="si2" style="background:#e8f5e9">🏡</div><div class="st">Imóvel</div></div><div style="font-size:13px;color:var(--t2)">Parcelas quitadas</div><div style="font-size:22px;font-weight:700;margin:4px 0 2px">4 <span style="font-size:14px;font-weight:400;color:var(--t3)">de 163</span></div><div class="pb2"><div class="pf" style="width:2.4%;background:var(--g)"></div></div><div class="ins"><div class="in2"><div class="l">Valor total</div><div class="v">R$ 570.000</div></div><div class="in2"><div class="l">Saldo restante</div><div class="v">R$ 556.000</div></div><div class="in2"><div class="l">Parcela mensal</div><div class="v">R$ 3.500</div></div><div class="in2"><div class="l">Pago total</div><div class="v" style="color:var(--g)">R$ 14.000</div></div></div></div>'
     +'<div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;padding:.6rem .1rem .3rem">💳 Cartões de crédito</div>'
     +renderCartoesHTML();
 }
@@ -1856,10 +1829,10 @@ function editCartao(cid,field,el){
   if(el.querySelector('input'))return;
   const cartoes=getCartoes();const c=cartoes.find(x=>x.id===cid);if(!c)return;
   const isFatura=field==='fatura';
-  const inp=document.createElement('input');inp.type='number';const fatura=getFatura(cid);inp.value=isFatura?(fatura||0).toFixed(2):c[field];
+  const inp=document.createElement('input');inp.type='number';inp.value=isFatura?getFatura(cid).toFixed(2):c[field];
   inp.step=isFatura?'0.01':'1';inp.min='0';if(!isFatura)inp.max='31';inp.className='cc-inp';
   el.innerHTML='';el.appendChild(inp);inp.focus();inp.select();
-  const commit=()=>{const v=parseFloat(inp.value);if(!isNaN(v)&&v>=0){if(isFatura){setFatura(cid,+v.toFixed(2));}else{c[field]=Math.max(1,Math.min(31,Math.round(v)));D['_cartoes']=cartoes;}syncCartaoLancamento(c);saveData();toast('✅ Cartão atualizado com sucesso','success');}render();renderSide();};
+  const commit=()=>{const v=parseFloat(inp.value);if(!isNaN(v)&&v>=0){if(isFatura){setFatura(cid,+v.toFixed(2));}else{c[field]=Math.max(1,Math.min(31,Math.round(v)));D['_cartoes']=cartoes;}syncCartaoLancamento(c);saveData();}render();renderSide();};
   inp.addEventListener('blur',commit);inp.addEventListener('keydown',ev=>{if(ev.key==='Enter')inp.blur();if(ev.key==='Escape')renderSide();});inp.addEventListener('click',ev=>ev.stopPropagation());
 }
 function pagarFaturaCartao(cid){
@@ -2276,15 +2249,15 @@ function toast(msg){const t=document.createElement('div');t.className='toast';t.
 /* ── DARK MODE ── */
 function toggleDarkMode(){
   const isDark=document.body.classList.toggle('dark-mode');
-  localStorage.setItem(CONFIG.storage.theme,isDark?'1':'0');
+  localStorage.setItem('darkMode',isDark?'1':'0');
   const toggle=document.getElementById('theme-toggle');
   if(toggle)toggle.textContent=isDark?'☀️':'🌙';
-  
+  console.log('🌙 Dark mode:',isDark?'ativado':'desativado');
   toast(isDark?'🌙 Modo escuro ativado':'☀️ Modo claro ativado');
 }
 
 // Inicializar dark mode
-if(localStorage.getItem(CONFIG.storage.theme)==='1'){
+if(localStorage.getItem('darkMode')==='1'){
   document.body.classList.add('dark-mode');
   const toggle=document.getElementById('theme-toggle');
   if(toggle)toggle.textContent='☀️';
@@ -2313,11 +2286,41 @@ function checkCartaoAlerts(){
   });
 }
 
-// Onboarding removido - acesso direto
-function showOnboarding(){}
+/* ── ONBOARDING ── */
+function showOnboarding(){
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;display:flex;align-items:center;justify-content:center;animation:fadeIn .3s';
+  const card=document.createElement('div');
+  card.style.cssText='background:var(--w);border-radius:16px;padding:2.5rem;width:500px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.3);animation:slideDown .3s cubic-bezier(.4,0,.2,1)';
+  card.innerHTML=`
+    <div style="text-align:center;margin-bottom:1.5rem">
+      <div style="font-size:48px;margin-bottom:.75rem">👋</div>
+      <h1 style="font-size:24px;font-weight:700;margin-bottom:.5rem;color:var(--t)">Bem-vindo ao Nosso Lar!</h1>
+      <p style="color:var(--t2);margin:0">Seu painel financeiro familiar</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:1rem;margin:1.5rem 0">
+      <div style="display:flex;align-items:flex-start;gap:1rem">
+        <div style="font-size:32px;flex-shrink:0">📝</div>
+        <div><strong style="color:var(--t)">Lançamentos</strong><p style="color:var(--t3);margin:4px 0 0;font-size:13px">Registre entradas e saídas de dinheiro</p></div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:1rem">
+        <div style="font-size:32px;flex-shrink:0">💳</div>
+        <div><strong style="color:var(--t)">Cartões</strong><p style="color:var(--t3);margin:4px 0 0;font-size:13px">Monitore saldos e limites dos seus cartões</p></div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:1rem">
+        <div style="font-size:32px;flex-shrink:0">📊</div>
+        <div><strong style="color:var(--t)">Visão Geral</strong><p style="color:var(--t3);margin:4px 0 0;font-size:13px">Visualize gráficos e resumo financeiro</p></div>
+      </div>
+    </div>
+    <button onclick="this.closest('div').parentNode.parentNode.remove();sessionStorage.setItem('onboarding-shown',1)" style="width:100%;padding:.75rem 1.5rem;background:var(--g);color:#fff;border:none;border-radius:10px;font-weight:600;font-size:14px;cursor:pointer;transition:all .2s;margin-top:1.5rem">Entendi, vamos lá!</button>
+  `;
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+}
 
 /* ── DESKTOP PAGE NAVIGATION ── */
 async function switchPage(page){
+  console.log('🔄 Mudando para página:', page);
 
   // Atualizar abas ativas
   document.querySelectorAll('.desktop-tab').forEach(tab=>{
@@ -2341,17 +2344,15 @@ async function switchPage(page){
     try{
       if(page==='lancamentos'){
         renderLancamentosDesktop();
-      } else if(page==='cartoes-credito'){
-        await renderCartoesCredito();
       } else if(page==='cartoes'){
         await renderCartoesDesktopNovo();
         checkCartaoAlerts();
       } else if(page==='visao-geral'){
         renderVisaoGeralDesktopNovo();
       }
-
+      console.log('✅ Página carregada:', page);
     } catch(e){
-
+      console.error('❌ Erro ao renderizar página:', e);
       pageEl.innerHTML='<div class="card" style="padding:2rem;text-align:center;color:var(--r)">Erro ao carregar página</div>';
     }
   }
@@ -2407,11 +2408,11 @@ function renderLancamentosDesktop(){
       </div>
       <div style="border-top:1px solid var(--b);padding-top:.75rem;display:flex;justify-content:space-between;align-items:center">
         <span style="color:var(--t3)">Pendentes</span>
-        <span style="font-weight:700;color:var(--a)">${fv(pendOut)}</span>
+        <span style="font-weight:700;color:var(--a)">${fv(pendentes)}</span>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span style="color:var(--t3)">A Receber</span>
-        <span style="font-weight:700;color:var(--g)">${fv(pendIn)}</span>
+        <span style="font-weight:700;color:var(--g)">${fv(aReceber)}</span>
       </div>
     </div>
   </div>`;
@@ -2514,69 +2515,58 @@ document.addEventListener('DOMContentLoaded',()=>{
 /* ── FASE 1: Renderização de Faturas ── */
 async function fetchFaturasFromSupabase(){
   try{
-    const sb=getSB();
+    console.log('%c📡 INICIANDO BUSCA DE FATURAS', 'color: #1DB954; font-weight: bold; font-size: 14px');
 
+    const sb=getSB();
+    console.log('✅ Supabase carregado:', !!sb);
     if(!sb){
-      toast('❌ Supabase não configurado','error');
-      D._faturas={};
-      D._limites={};
-      D._faturasRaw=[];
+      console.error('❌ Supabase não disponível');
       return;
     }
 
+    console.log('🔍 Consultando tabela nosso_lar_faturas...');
     // Buscar dados da tabela nosso_lar_faturas
     const{data:faturas,error}=await sb
       .from('nosso_lar_faturas')
       .select('*')
       .order('mes_ref',{ascending:false});
 
+    console.log('%cRESPOSTA DO SUPABASE:', 'color: #0070c0; font-weight: bold');
+    console.log('  Sucesso:', !error);
+    console.log('  Faturas retornadas:', faturas?.length||0);
+    console.log('  Erro:', error?.message||'nenhum');
+    if(faturas?.length>0) console.log('  Amostra:', faturas.slice(0,2));
+
     if(error){
-      toast('❌ Erro ao buscar faturas: '+error.message, 'error');
-      D._faturas={};
-      D._limites={};
-      D._faturasRaw=[];
+      console.error('%c❌ ERRO NA QUERY', 'color: #dc2626; font-weight: bold', error);
+      toast('❌ Erro ao buscar: '+error.message, 'error');
       return;
     }
 
     if(!faturas||faturas.length===0){
-      // Sem dados no Supabase - usar dados padrão vazios
+      console.warn('%c⚠️ NENHUMA FATURA RETORNADA', 'color: #f59e0b; font-weight: bold');
+      toast('❌ Nenhum dado de fatura no Supabase','error');
       D._faturas={};
       D._limites={};
       D._faturasRaw=[];
       return;
     }
 
+    console.log('%c✅ SUCESSO! '+faturas.length+' faturas encontradas', 'color: #1DB954; font-weight: bold; font-size: 14px');
     await processarFaturas(faturas);
 
   }catch(e){
-    toast('❌ Erro crítico ao buscar faturas: '+e.message, 'error');
-    D._faturas={};
-    D._limites={};
-    D._faturasRaw=[];
+    console.error('%c❌ ERRO CRÍTICO', 'color: #dc2626; font-weight: bold', e);
+    toast('❌ Erro crítico ao buscar faturas', 'error');
   }
 }
 
 async function processarFaturas(faturas){
   try{
+    console.log('🔄 Processando',faturas?.length||0,'faturas...');
+
     if(!faturas||faturas.length===0){
-      D._faturas={};
-      D._limites={};
-      D._faturasRaw=[];
-      return;
-    }
-
-    // Validar estrutura básica das faturas
-    const faturasValidas=faturas.filter(f=>{
-      if(!f.cartao||!f.mes_ref||typeof f.fatura_total!=='number'){
-        return false;
-      }
-      return true;
-    });
-
-    if(faturasValidas.length===0){
-      D._faturas={};
-      D._limites={};
-      D._faturasRaw=[];
+      console.warn('⚠️ Lista de faturas vazia!');
       return;
     }
 
@@ -2586,30 +2576,37 @@ async function processarFaturas(faturas){
 
     // Gerar categorias com IA para faturas que não têm
     const faturasComCategoria=await Promise.all(
-      faturasValidas.map(async f=>{
+      faturas.map(async f=>{
         if(!f.categoria){
           f.categoria=await gerarCategoriaComIA(f);
         }
         if(!f.items){
-          f.items='Fatura - '+(f.banco||'transação');
+          f.items='Fatura - '+f.banco||'transação';
         }
         return f;
       })
     );
 
     faturasComCategoria.forEach(f=>{
+      // Usar mes_ref como identificador do mês (YYYY-MM)
       const mes=f.mes_ref||today().slice(0,7);
       if(!faturasPorMes[mes])faturasPorMes[mes]={};
 
+      // Agrupar fatura_total por cartão
       const cartaoId=f.cartao;
-      if(!cartaoId)return;
+      if(!cartaoId){
+        console.warn('⚠️ Fatura sem cartão:', f);
+        return;
+      }
 
       if(!faturasPorMes[mes][cartaoId]){
         faturasPorMes[mes][cartaoId]=0;
       }
 
+      // Somar o total da fatura
       faturasPorMes[mes][cartaoId]+=f.fatura_total||0;
 
+      // Armazenar limite do cartão
       if(f.limite){
         limites[cartaoId]=f.limite;
       }
@@ -2620,12 +2617,15 @@ async function processarFaturas(faturas){
 
     D._faturas=faturasPorMes;
     D._limites=limites;
-    D._faturasRaw=faturasComProjecao;
+    D._faturasRaw=faturasComProjecao; // Armazenar dados brutos com projeção
 
+    console.log('✅ Faturas processadas:',Object.keys(faturasPorMes).length,'meses');
+    console.log('📊 Meses com dados:', Object.keys(faturasPorMes).sort());
+    console.log('💳 Cartões identificados:', Object.keys(limites));
+    console.log('✅ D._faturasRaw tem',faturasComProjecao.length,'itens com categorias');
   }catch(e){
-    D._faturas={};
-    D._limites={};
-    D._faturasRaw=[];
+    console.error('❌ Erro ao processar faturas:',e.message);
+    console.error(e);
   }
 }
 
@@ -2661,9 +2661,10 @@ async function gerarCategoriaComIA(fatura){
       categoria='Assinaturas';
     }
 
+    console.log('🤖 Categoria gerada:',banco,'→',categoria);
     return categoria;
   }catch(e){
-    
+    console.warn('⚠️ Erro ao gerar categoria:', e.message);
     return 'Outros';
   }
 }
@@ -2710,341 +2711,21 @@ async function projetarParcelasFuturas(faturas){
 // Agora apenas dados REAIS do Supabase são utilizados
 // Para popular o Supabase, use o SQL fornecido no guia
 
-/* ── NOVA ABA: CARTÕES DE CRÉDITO COM DATAVIZ ── */
-async function renderCartoesCredito(){
-  const container=document.getElementById('page-cartoes-credito');
-  if(!container)return;
-
-  container.innerHTML='<div class="card" style="text-align:center;padding:3rem;color:var(--t3)">⏳ Carregando análise de cartões...</div>';
-
-  await fetchFaturasFromSupabase();
-
-  if(!D._faturas||!D._limites||!D._faturasRaw){
-    D._faturas=D._faturas||{};
-    D._limites=D._limites||{};
-    D._faturasRaw=D._faturasRaw||[];
-  }
-
-  container.innerHTML='';
-
-  const cartoes=getCartoes();
-  if(!cartoes||cartoes.length===0){
-    container.innerHTML='<div class="card" style="text-align:center;padding:3rem;color:var(--t3)"><div style="font-size:48px;margin-bottom:1rem">💳</div><div style="font-weight:600;font-size:16px;margin-bottom:.5rem;color:var(--t)">Nenhum cartão configurado</div></div>';
-    return;
-  }
-
-  // ═══════════════════════════════════════════════════════════
-  // SEÇÃO 1: RESUMO DOS CARTÕES (TOP CARDS)
-  // ═══════════════════════════════════════════════════════════
-  const mesAtualFaturas=(D._faturas||{})[mes]||{};
-  const totalUtilizado=Object.values(mesAtualFaturas).reduce((s,v)=>s+(v||0),0);
-  const limiteTotalCartoes=cartoes.reduce((s,c)=>s+getLimiteCartao(c.id),0);
-  const disponvelTotal=Math.max(0,limiteTotalCartoes-totalUtilizado);
-  const percentualUtilizacao=limiteTotalCartoes>0?(totalUtilizado/limiteTotalCartoes*100):0;
-
-  const resumoSection=document.createElement('div');
-  resumoSection.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-bottom:2rem';
-  resumoSection.innerHTML=`
-    <div class="card" style="border-left:4px solid var(--a)">
-      <div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;margin-bottom:1rem;letter-spacing:.05em">💳 Total em Cartões</div>
-      <div style="font-size:28px;font-weight:700;color:var(--r);margin-bottom:.5rem">${fv(totalUtilizado)}</div>
-      <div style="font-size:12px;color:var(--t3)">de ${fv(limiteTotalCartoes)}</div>
-    </div>
-    <div class="card" style="border-left:4px solid var(--g)">
-      <div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;margin-bottom:1rem;letter-spacing:.05em">✅ Limite Disponível</div>
-      <div style="font-size:28px;font-weight:700;color:var(--g);margin-bottom:.5rem">${fv(disponvelTotal)}</div>
-      <div style="font-size:12px;color:var(--t3)">${percentualUtilizacao.toFixed(1)}% utilizado</div>
-    </div>
-    <div class="card" style="border-left:4px solid var(--t3)">
-      <div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;margin-bottom:1rem;letter-spacing:.05em">📊 Cartões Ativos</div>
-      <div style="font-size:28px;font-weight:700;color:var(--t);margin-bottom:.5rem">${cartoes.filter(c=>(mesAtualFaturas[c.id]||0)>0).length}</div>
-      <div style="font-size:12px;color:var(--t3)">de ${cartoes.length}</div>
-    </div>
-  `;
-  container.appendChild(resumoSection);
-
-  // ═══════════════════════════════════════════════════════════
-  // SEÇÃO 2: GRÁFICOS (2 COLUNAS)
-  // ═══════════════════════════════════════════════════════════
-  const chartsSection=document.createElement('div');
-  chartsSection.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:1.5rem;margin-bottom:2rem';
-
-  // Gráfico 1: Distribuição por Cartão (Pie Chart)
-  const pieChartCard=document.createElement('div');
-  pieChartCard.className='card';
-  pieChartCard.innerHTML=`
-    <h3 style="font-size:15px;font-weight:700;margin-bottom:1.5rem;color:var(--t)">📈 Distribuição de Gastos</h3>
-    <div id="chart-pie" style="height:280px;display:flex;align-items:center;justify-content:center;background:var(--bg);border-radius:8px;color:var(--t3)">Gerando gráfico...</div>
-  `;
-  chartsSection.appendChild(pieChartCard);
-
-  // Gráfico 2: Evolução Mensal
-  const lineChartCard=document.createElement('div');
-  lineChartCard.className='card';
-  lineChartCard.innerHTML=`
-    <h3 style="font-size:15px;font-weight:700;margin-bottom:1.5rem;color:var(--t)">📊 Evolução Mensal</h3>
-    <div id="chart-line" style="height:280px;display:flex;align-items:center;justify-content:center;background:var(--bg);border-radius:8px;color:var(--t3)">Gerando gráfico...</div>
-  `;
-  chartsSection.appendChild(lineChartCard);
-
-  container.appendChild(chartsSection);
-
-  // ═══════════════════════════════════════════════════════════
-  // SEÇÃO 3: CARDS DETALHADOS DE CADA CARTÃO
-  // ═══════════════════════════════════════════════════════════
-  const detalhesSection=document.createElement('div');
-  detalhesSection.style.cssText='display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1rem;margin-bottom:2rem';
-
-  cartoes.forEach(cartao=>{
-    const faturaMes=mesAtualFaturas[cartao.id]||0;
-    const limite=getLimiteCartao(cartao.id);
-    const disponivel=Math.max(0,limite-faturaMes);
-    const percentual=limite>0?(faturaMes/limite*100):0;
-    const corBg=cartao.cor||'var(--g)';
-
-    const faturasCartao=(D._faturasRaw||[]).filter(f=>f.cartao===cartao.id);
-    const statusRecente=faturasCartao[0]?.status||'sem dados';
-
-    const cardEl=document.createElement('div');
-    cardEl.className='card';
-    cardEl.style.cssText=`border-left:4px solid ${corBg};`;
-    cardEl.innerHTML=`
-      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem">
-        <div style="font-size:24px">${cartao.emoji||'💳'}</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:700;font-size:14px;color:var(--t)">${cartao.nome}</div>
-          <div style="font-size:11px;color:var(--t3)">Venc: ${cartao.vencimento}º</div>
-        </div>
-        <div style="font-size:11px;font-weight:600;padding:.3rem .6rem;background:${statusRecente==='pago'?'#dcfce7':statusRecente==='pendente'?'#fef9c3':'#e5e7eb'};color:${statusRecente==='pago'?'#166534':statusRecente==='pendente'?'#854d0e':'#374151'};border-radius:4px;text-transform:uppercase">${statusRecente}</div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1rem;padding:.75rem;background:var(--bg);border-radius:8px">
-        <div>
-          <div style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Utilizado</div>
-          <div style="font-size:16px;font-weight:700;color:var(--r)">${fv(faturaMes)}</div>
-        </div>
-        <div>
-          <div style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Disponível</div>
-          <div style="font-size:16px;font-weight:700;color:var(--g)">${fv(disponivel)}</div>
-        </div>
-      </div>
-
-      <div style="margin-bottom:1rem">
-        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px">
-          <div style="color:var(--t2);font-weight:600">Limite: ${fv(limite)}</div>
-          <div style="color:var(--t3);font-weight:600">${percentual.toFixed(0)}%</div>
-        </div>
-        <div style="height:6px;background:var(--b);border-radius:99px;overflow:hidden">
-          <div style="height:100%;width:${Math.min(percentual,100)}%;background:${corBg};border-radius:99px;transition:width .3s"></div>
-        </div>
-      </div>
-
-      <div style="font-size:12px;color:var(--t2);padding:.75rem;background:var(--bg);border-radius:6px;text-align:center">
-        ${faturasCartao.length} fatura${faturasCartao.length!==1?'s':''} registrada${faturasCartao.length!==1?'s':''}
-      </div>
-    `;
-    detalhesSection.appendChild(cardEl);
-  });
-
-  container.appendChild(detalhesSection);
-
-  // ═══════════════════════════════════════════════════════════
-  // SEÇÃO 4: TABELA DE FATURAS RECENTES
-  // ═══════════════════════════════════════════════════════════
-  const tabelaSection=document.createElement('div');
-  tabelaSection.className='card';
-  tabelaSection.innerHTML=`
-    <h3 style="font-size:15px;font-weight:700;margin-bottom:1.5rem;color:var(--t)">📋 Faturas Recentes</h3>
-    <div id="tabela-faturas" style="overflow-x:auto;border-radius:8px;border:1px solid var(--b)"></div>
-  `;
-  container.appendChild(tabelaSection);
-
-  // Renderizar gráficos após inserir DOM
-  setTimeout(()=>{
-    renderChartsCartoesCredito(cartoes);
-  },100);
-}
-
-function renderChartsCartoesCredito(cartoes){
-  // ═══════════════════════════════════════════════════════════
-  // GRÁFICO PIE: Distribuição de Gastos
-  // ═══════════════════════════════════════════════════════════
-  const mesAtualFaturas=(D._faturas||{})[mes]||{};
-  const dadosPie=cartoes
-    .map(c=>({nome:c.nome,valor:mesAtualFaturas[c.id]||0,emoji:c.emoji,cor:c.cor}))
-    .filter(d=>d.valor>0)
-    .sort((a,b)=>b.valor-a.valor);
-
-  if(dadosPie.length>0){
-    const total=dadosPie.reduce((s,d)=>s+d.valor,0);
-    const chartPie=document.getElementById('chart-pie');
-    let svg=`<svg width="100%" height="100%" viewBox="0 0 300 280" style="max-width:300px">`;
-
-    let cumulative=0;
-    const raioExterno=80;
-    const raioInterno=40;
-
-    dadosPie.forEach((item,idx)=>{
-      const porcentagem=item.valor/total;
-      const angulo=porcentagem*360;
-      const inicio=cumulative;
-      const fim=cumulative+angulo;
-
-      const startX=150+raioExterno*Math.cos((inicio-90)*Math.PI/180);
-      const startY=140+raioExterno*Math.sin((inicio-90)*Math.PI/180);
-      const endX=150+raioExterno*Math.cos((fim-90)*Math.PI/180);
-      const endY=140+raioExterno*Math.sin((fim-90)*Math.PI/180);
-
-      const largoArco=angulo>180?1:0;
-
-      const path=`M 150 140 L ${startX} ${startY} A ${raioExterno} ${raioExterno} 0 ${largoArco} 1 ${endX} ${endY} Z`;
-      svg+=`<path d="${path}" fill="${item.cor||'var(--g)'}" opacity="0.85" stroke="var(--w)" stroke-width="2"/>`;
-
-      cumulative=fim;
-    });
-
-    svg+=`</svg><div style="margin-top:1rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.75rem">`;
-    dadosPie.forEach(item=>{
-      const porcentagem=((item.valor/total)*100).toFixed(1);
-      svg+=`<div style="font-size:12px;padding:.5rem;background:var(--bg);border-radius:6px;border-left:3px solid ${item.cor||'var(--g)'}"><div style="font-weight:600;color:var(--t)">${item.emoji} ${item.nome}</div><div style="color:var(--t3);margin-top:2px">${fv(item.valor)} (${porcentagem}%)</div></div>`;
-    });
-    svg+=`</div>`;
-
-    chartPie.innerHTML=svg;
-  }else{
-    document.getElementById('chart-pie').innerHTML='<div style="color:var(--t3);text-align:center">Sem dados para este período</div>';
-  }
-
-  // ═══════════════════════════════════════════════════════════
-  // GRÁFICO LINE: Evolução Mensal
-  // ═══════════════════════════════════════════════════════════
-  const mesesDisponiveis=Object.keys(D._faturas||{}).sort().slice(-12);
-  if(mesesDisponiveis.length>0){
-    const chartLine=document.getElementById('chart-line');
-    const dadosLinha=mesesDisponiveis.map(m=>{
-      const total=Object.values((D._faturas||{})[m]||{}).reduce((s,v)=>s+(v||0),0);
-      return {mes:m,total};
-    });
-
-    const maxValor=Math.max(...dadosLinha.map(d=>d.total),1);
-    const W=chartLine.parentElement.offsetWidth-30;
-    const H=250;
-    const padding=30;
-    const chartW=W-padding*2;
-    const chartH=H-padding*2;
-
-    let svg=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="width:100%;height:100%">`;
-    svg+=`<defs><linearGradient id="gradLine" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:var(--g);stop-opacity:0.3"/><stop offset="100%" style="stop-color:var(--g);stop-opacity:0.05"/></linearGradient></defs>`;
-
-    // Desenhar pontos e linha
-    let pathData=`M`;
-    dadosLinha.forEach((d,idx)=>{
-      const x=padding+idx*(chartW/Math.max(dadosLinha.length-1,1));
-      const y=padding+chartH-((d.total/maxValor)*chartH);
-      if(idx===0)pathData=`M ${x} ${y}`;
-      else pathData+=` L ${x} ${y}`;
-    });
-
-    if(dadosLinha.length>1){
-      svg+=`<path d="${pathData}" stroke="var(--g)" stroke-width="2" fill="none"/>`;
-
-      // Preencher área
-      let areaPath=pathData+` L ${padding+chartW} ${padding+chartH} L ${padding} ${padding+chartH} Z`;
-      svg+=`<path d="${areaPath}" fill="url(#gradLine)"/>`;
-    }
-
-    // Desenhar pontos
-    dadosLinha.forEach((d,idx)=>{
-      const x=padding+idx*(chartW/Math.max(dadosLinha.length-1,1));
-      const y=padding+chartH-((d.total/maxValor)*chartH);
-      svg+=`<circle cx="${x}" cy="${y}" r="4" fill="var(--g)" opacity="0.8"/>`;
-
-      // Label do mês
-      const mesLabel=d.mes.split('-')[1];
-      svg+=`<text x="${x}" y="${H-10}" text-anchor="middle" font-size="11" fill="var(--t3)">${mesLabel}</text>`;
-    });
-
-    svg+=`</svg>`;
-    chartLine.innerHTML=svg;
-  }else{
-    document.getElementById('chart-line').innerHTML='<div style="color:var(--t3);text-align:center">Sem histórico de dados</div>';
-  }
-
-  // ═══════════════════════════════════════════════════════════
-  // TABELA: Faturas Recentes
-  // ═══════════════════════════════════════════════════════════
-  const faturasRecentes=(D._faturasRaw||[])
-    .sort((a,b)=>new Date(b.mes_ref)-new Date(a.mes_ref))
-    .slice(0,20);
-
-  if(faturasRecentes.length>0){
-    let html=`<table style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead>
-        <tr style="background:var(--bg);border-bottom:2px solid var(--b2)">
-          <th style="padding:.75rem;text-align:left;font-weight:700;color:var(--t2);text-transform:uppercase;font-size:11px">Cartão</th>
-          <th style="padding:.75rem;text-align:left;font-weight:700;color:var(--t2);text-transform:uppercase;font-size:11px">Período</th>
-          <th style="padding:.75rem;text-align:right;font-weight:700;color:var(--t2);text-transform:uppercase;font-size:11px">Fatura</th>
-          <th style="padding:.75rem;text-align:center;font-weight:700;color:var(--t2);text-transform:uppercase;font-size:11px">Status</th>
-          <th style="padding:.75rem;text-align:center;font-weight:700;color:var(--t2);text-transform:uppercase;font-size:11px">Vencimento</th>
-        </tr>
-      </thead>
-      <tbody>
-    `;
-
-    faturasRecentes.forEach(f=>{
-      const cartao=cartoes.find(c=>c.id===f.cartao);
-      const statusColor=f.status==='pago'?'#166534':f.status==='pendente'?'#854d0e':f.status==='atrasado'?'#991b1b':'#6b7280';
-      const statusBg=f.status==='pago'?'#dcfce7':f.status==='pendente'?'#fef9c3':f.status==='atrasado'?'#fee2e2':'#f3f4f6';
-
-      html+=`<tr style="border-bottom:1px solid var(--b);transition:all .2s;background:transparent">
-        <td style="padding:.75rem;font-weight:600;color:var(--t)">${cartao?cartao.emoji+' '+cartao.nome:'Desconhecido'}</td>
-        <td style="padding:.75rem;color:var(--t2)">${f.mes_ref||'—'}</td>
-        <td style="padding:.75rem;text-align:right;color:var(--r);font-weight:600">${fv(f.fatura_total||0)}</td>
-        <td style="padding:.75rem;text-align:center"><span style="padding:.25rem .6rem;background:${statusBg};color:${statusColor};border-radius:4px;font-weight:600;font-size:10px;text-transform:uppercase">${f.status||'—'}</span></td>
-        <td style="padding:.75rem;text-align:center;color:var(--t3)">${f.data_vencimento?fd(f.data_vencimento):'—'}</td>
-      </tr>`;
-    });
-
-    html+=`</tbody></table>`;
-    document.getElementById('tabela-faturas').innerHTML=html;
-  }else{
-    document.getElementById('tabela-faturas').innerHTML='<div style="padding:2rem;text-align:center;color:var(--t3)">Nenhuma fatura registrada</div>';
-  }
-}
-
 async function renderCartoesDesktopNovo(){
   const container=document.getElementById('page-cartoes');
   if(!container)return;
 
   // Mostrar loading enquanto busca faturas
-  container.innerHTML='<div class="card" style="text-align:center;padding:3rem;color:var(--t3)">⏳ Carregando faturas do Supabase...</div>';
+  container.innerHTML='<div class="card" style="text-align:center;padding:3rem;color:var(--t3)">Carregando faturas...</div>';
 
-  try{
-    // Buscar faturas do Supabase
-    await fetchFaturasFromSupabase();
+  // Buscar faturas do Supabase
+  await fetchFaturasFromSupabase();
 
-    // Validar se dados foram carregados
-    if(!D._faturas||!D._limites||!D._faturasRaw){
-      D._faturas=D._faturas||{};
-      D._limites=D._limites||{};
-      D._faturasRaw=D._faturasRaw||[];
-    }
+  container.innerHTML='';
 
-    container.innerHTML='';
-
-    const cartoes=getCartoes();
-    if(!cartoes||cartoes.length===0){
-      container.innerHTML='<div class="card" style="text-align:center;padding:3rem;color:var(--t3)"><div style="font-size:48px;margin-bottom:1rem">💳</div><div style="font-weight:600;font-size:16px;margin-bottom:.5rem;color:var(--t)">Nenhum cartão configurado</div><div style="color:var(--t2);font-size:13px">Para começar, você precisa adicionar cartões de crédito no sistema.</div></div>';
-      return;
-    }
-
-    // Verificar se há dados de faturas
-    const temFaturas=Object.keys(D._faturas).length>0&&Object.keys(D._faturas).some(m=>Object.keys(D._faturas[m]||{}).length>0);
-    if(!temFaturas){
-      container.innerHTML='<div class="card" style="padding:1.5rem;background:rgba(255,165,0,.1);border-left:4px solid var(--a);margin-bottom:1.5rem"><div style="font-weight:600;color:var(--a);margin-bottom:.5rem;display:flex;align-items:center;gap:.5rem"><span>⚠️</span><span>Sem dados de faturas</span></div><div style="font-size:13px;color:var(--t2);line-height:1.5">Nenhuma fatura foi encontrada no Supabase para os cartões cadastrados.<br/>Verifique se os dados foram sincronizados corretamente.</div></div>';
-    }
-  }catch(e){
-    container.innerHTML='<div class="card" style="padding:1.5rem;background:rgba(255,67,87,.1);border-left:4px solid var(--r)"><div style="font-weight:600;color:var(--r);margin-bottom:.5rem;display:flex;align-items:center;gap:.5rem"><span>❌</span><span>Erro ao carregar cartões</span></div><div style="font-size:13px;color:var(--t2);line-height:1.5">Houve um erro ao buscar os dados do Supabase.<br/>Tente novamente em alguns momentos.</div></div>';
+  const cartoes=getCartoes();
+  if(!cartoes||cartoes.length===0){
+    container.innerHTML='<div class="card" style="text-align:center;padding:3rem;color:var(--t3)">Nenhum cartão configurado</div>';
     return;
   }
 
@@ -3062,9 +2743,8 @@ async function renderCartoesDesktopNovo(){
   // ═══════════════════════════════════════════════════════════
   // SEÇÃO 1.5: RESUMO TOTAL DE CARTÕES
   // ═══════════════════════════════════════════════════════════
-  const mesAtualFaturas=(D._faturas||{})[mes]||{};
-  const totalUtilizado=Object.values(mesAtualFaturas).reduce((s,v)=>s+(v||0),0);
-  const limiteTotalCartoes=cartoes.reduce((s,c)=>s+getLimiteCartao(c.id),0);
+  const totalUtilizado=Object.values(D._faturas||{})[mes] ? Object.values((D._faturas||{})[mes]||{}).reduce((s,v)=>s+(v||0),0) : 0;
+  const limiteTotalCartoes=Object.values(D._limites||{}).reduce((s,v)=>s+(v||0),0);
   const disponvelTotalCartoes=Math.max(0,limiteTotalCartoes-totalUtilizado);
   const percentualCartoes=limiteTotalCartoes>0?(totalUtilizado/limiteTotalCartoes*100):0;
 
@@ -3105,8 +2785,8 @@ async function renderCartoesDesktopNovo(){
     const disponivel=Math.max(0,limite-faturaAtual);
     const percentual=limite>0?(faturaAtual/limite*100):0;
 
-    const statusBadge=faturaRecente?.status||'Sem dados';
-    const statusColor=statusBadge==='pago'?'var(--g)':statusBadge==='pendente'?'var(--a)':statusBadge==='atrasado'?'var(--r)':'var(--t3)';
+    const statusBadge=faturaRecente?.status||'—';
+    const statusColor=statusBadge==='pago'?'var(--g)':statusBadge==='pendente'?'var(--a)':'var(--t3)';
 
     const cardEl=document.createElement('div');
     cardEl.className='card';
@@ -3120,7 +2800,7 @@ async function renderCartoesDesktopNovo(){
           <div style="font-size:28px">${cartao.emoji||'💳'}</div>
           <div style="flex:1;min-width:0">
             <div style="font-weight:700;font-size:15px;color:var(--t)">${cartao.nome||'Cartão'}</div>
-            <div style="font-size:11px;color:var(--t3)">Venc: ${cartao.vencimento||'-'}º | Fech: ${cartao.fechamento||'-'}º</div>
+            <div style="font-size:11px;color:var(--t3)">Venc: ${cartao.vencimento}º | Fech: ${cartao.fechamento}º</div>
           </div>
         </div>
         <div style="display:inline-block;padding:.25rem .6rem;background:${statusColor};color:white;border-radius:4px;font-size:10px;font-weight:600;text-transform:uppercase;white-space:nowrap">${statusBadge}</div>
@@ -3154,30 +2834,26 @@ async function renderCartoesDesktopNovo(){
         <div style="font-size:12px;font-weight:700;color:var(--t);margin-bottom:.75rem">📄 Faturas (${faturasCartao.length})</div>
     `;
 
-    if(faturasCartao.length===0){
-      cardHTML+=`<div style="padding:1rem;background:var(--bg);border-radius:6px;color:var(--t3);font-size:12px;text-align:center">Sem faturas registradas</div>`;
-    }else{
-      // Renderizar up to 5 faturas mais recentes
-      faturasCartao.slice(0,5).forEach((fatura,idx)=>{
-        const mesData=fatura.mes_ref?fatura.mes_ref.slice(0,7):'—';
-        const dataPagFormatada=fatura.data_pagamento?fd(fatura.data_pagamento):'—';
-        const dataVencFormatada=fatura.data_vencimento?fd(fatura.data_vencimento):'—';
+    // Renderizar up to 5 faturas mais recentes
+    faturasCartao.slice(0,5).forEach((fatura,idx)=>{
+      const mesData=fatura.mes_ref.slice(0,7);
+      const dataPagFormatada=fatura.data_pagamento?fd(fatura.data_pagamento):'—';
+      const dataVencFormatada=fatura.data_vencimento?fd(fatura.data_vencimento):'—';
 
-        cardHTML+=`
-          <div style="padding:.6rem;background:var(--bg);border-radius:6px;margin-bottom:.5rem;font-size:11px">
-            <div style="display:flex;justify-content:space-between;margin-bottom:.4rem">
-              <div style="color:var(--t2);font-weight:600">${mesData}</div>
-              <div style="color:var(--t3);font-weight:500">${fatura.status||'—'}</div>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;font-size:10px;margin-bottom:.4rem">
-              <div><span style="color:var(--t3)">Total:</span> <strong style="color:var(--t)">${fv(fatura.fatura_total||0)}</strong></div>
-              <div><span style="color:var(--t3)">Venc:</span> <strong style="color:var(--t)">${dataVencFormatada}</strong></div>
-            </div>
-            ${fatura.items?`<div style="color:var(--t3);cursor:pointer;font-weight:500" onclick="toggleFaturaDetalhes(this.nextElementSibling)">▸ Ver itens</div><div style="display:none;margin-top:.4rem;padding-top:.4rem;border-top:1px solid var(--b)">${fatura.items.split('|').map(i=>'<div style="color:var(--t3);font-size:9px;margin-bottom:2px">• '+i+'</div>').join('')}</div>`:''}
+      cardHTML+=`
+        <div style="padding:.6rem;background:var(--bg);border-radius:6px;margin-bottom:.5rem;font-size:11px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:.4rem">
+            <div style="color:var(--t2);font-weight:600">${mesData}</div>
+            <div style="color:var(--t3)">${fatura.status||'—'}</div>
           </div>
-        `;
-      });
-    }
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;font-size:10px;margin-bottom:.4rem">
+            <div><span style="color:var(--t3)">Total:</span> <strong style="color:var(--t)">${fv(fatura.fatura_total||0)}</strong></div>
+            <div><span style="color:var(--t3)">Venc:</span> <strong style="color:var(--t)">${dataVencFormatada}</strong></div>
+          </div>
+          ${fatura.items?`<div style="color:var(--t3);cursor:pointer" onclick="toggleFaturaDetalhes(this.nextElementSibling)">▸ Ver itens</div><div style="display:none;margin-top:.4rem;padding-top:.4rem;border-top:1px solid var(--b)">${fatura.items.split('|').map(i=>'<div style="color:var(--t3);font-size:9px;margin-bottom:2px">• '+i+'</div>').join('')}</div>`:''}
+        </div>
+      `;
+    });
 
     cardHTML+=`
       </div>
@@ -3292,9 +2968,13 @@ function renderGraficoConsumoMensal(){
   const graficoEl=document.getElementById('grafico-consumo-mensal');
   if(!graficoEl)return;
 
+  console.log('🔍 DEBUG renderGraficoConsumoMensal:');
+  console.log('   D._faturasRaw:',D._faturasRaw?.length||0,'itens');
+  console.log('   D._faturas:',Object.keys(D._faturas||{}).length,'meses');
+
   const faturas=D._faturasRaw||[];
   if(faturas.length===0){
-    
+    console.warn('⚠️ Sem dados de faturas para gráfico');
     graficoEl.innerHTML='<div style="color:var(--t3);padding:2rem;text-align:center"><div>❌ Sem dados de faturas</div><div style="font-size:11px;margin-top:.5rem">Verifique os dados no Supabase</div></div>';
     return;
   }
@@ -3302,15 +2982,17 @@ function renderGraficoConsumoMensal(){
   // Agrupar por mês e calcular total
   const gastosPorMes={};
   faturas.forEach(f=>{
-    
+    console.log('🔍 Processando fatura:', {mes_ref: f.mes_ref, banco: f.banco, fatura_total: f.fatura_total});
     const mes=f.mes_ref;
     if(!mes){
-      
+      console.warn('⚠️ Fatura sem mes_ref:', f);
       return;
     }
     if(!gastosPorMes[mes])gastosPorMes[mes]=0;
     gastosPorMes[mes]+=(f.fatura_total||0);
   });
+
+  console.log('📊 Gastos por mês:',gastosPorMes);
 
   // Ordenar meses
   const meses=Object.keys(gastosPorMes).sort();
@@ -3450,9 +3132,12 @@ function renderGraficoCategoriasmensal(){
   const graficoEl=document.getElementById('grafico-categorias-mensal');
   if(!graficoEl)return;
 
+  console.log('🔍 DEBUG renderGraficoCategoriasmensal:');
+  console.log('   D._faturasRaw:',D._faturasRaw?.length||0,'itens');
+
   const faturas=D._faturasRaw||[];
   if(faturas.length===0){
-    
+    console.warn('⚠️ Sem dados para gráfico de categorias');
     graficoEl.innerHTML='<div style="color:var(--t3);padding:2rem;text-align:center"><div>❌ Sem dados de categorias</div><div style="font-size:11px;margin-top:.5rem">Verifique se as faturas têm categoria preenchida</div></div>';
     return;
   }
@@ -3463,7 +3148,7 @@ function renderGraficoCategoriasmensal(){
     const mes=f.mes_ref;
     const cat=f.categoria||'Sem categoria';
     if(!mes){
-      
+      console.warn('⚠️ Fatura sem mes_ref na categoria:', f);
       return;
     }
 
@@ -3541,7 +3226,7 @@ function renderGraficoCategoriasmensal(){
 
 function toggleCartaoFilter(btn){
   btn.classList.toggle('on');
-  
+  console.log('Filtro alterado');
 }
 
 function showCartaoDetalhes(cartaoOrEvent){
@@ -3559,7 +3244,7 @@ function showCartaoDetalhes(cartaoOrEvent){
   }
 
   if(!cartao){
-    
+    console.error('❌ Cartão não encontrado:', cartaoId);
     return;
   }
 
@@ -3586,9 +3271,7 @@ function showCartaoDetalhes(cartaoOrEvent){
 
   const modal=document.createElement('div');
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:5000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)';
-
-  const closeModal=()=>{modal.remove();};
-  modal.onclick=(ev)=>{if(ev.target===modal)closeModal();};
+  modal.onclick=(ev)=>{if(ev.target===modal)modal.remove();};
 
   const content=document.createElement('div');
   content.style.cssText='background:var(--w);border-radius:14px;padding:2rem;width:700px;max-width:90vw;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);border:1px solid var(--b)';
@@ -3601,7 +3284,7 @@ function showCartaoDetalhes(cartaoOrEvent){
             <div style="font-size:12px;color:var(--t3)">ID: ${cartaoId}</div>
           </div>
         </div>
-        <button id="detail-modal-close" style="border:none;background:none;font-size:20px;cursor:pointer;color:var(--t3)">✕</button>
+        <button style="border:none;background:none;font-size:20px;cursor:pointer;color:var(--t3)">✕</button>
       </div>
 
       <div style="margin-bottom:1.5rem;padding:1rem;background:var(--bg);border-radius:8px">
@@ -3625,15 +3308,15 @@ function showCartaoDetalhes(cartaoOrEvent){
         </div>
       </div>
 
-      <button id="detail-modal-close-btn" style="width:100%;padding:.6rem;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer">Fechar</button>
+      <button style="width:100%;padding:.6rem;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer">Fechar</button>
     `;
+
+  // Attach event handlers
+  content.querySelector('button:first-of-type').onclick=()=>modal.remove();  // Close X button
+  content.querySelector('button:last-of-type').onclick=()=>modal.remove();   // Close button
 
   modal.appendChild(content);
   document.body.appendChild(modal);
-
-  // Attach event handlers AFTER appending
-  document.getElementById('detail-modal-close').onclick=closeModal;
-  document.getElementById('detail-modal-close-btn').onclick=closeModal;
 }
 
 /* ── FASE 3: Edição de Cartões ── */
@@ -3654,9 +3337,7 @@ function showEditCartaoModal(cartaoIdOrObj){
 
   const modal=document.createElement('div');
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:5001;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)';
-
-  const closeModal=()=>{modal.remove();};
-  modal.onclick=(ev)=>{if(ev.target===modal)closeModal();};
+  modal.onclick=(ev)=>{if(ev.target===modal)modal.remove();};
 
   const novaData=(d)=>d?d.split('-').reverse().join('/'):today().split('-').reverse().join('/');
 
@@ -3665,7 +3346,7 @@ function showEditCartaoModal(cartaoIdOrObj){
   content.innerHTML=`
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
         <h2 style="font-size:18px;font-weight:700;color:var(--t)">Editar ${cartao.emoji||'💳'} ${cartao.nome}</h2>
-        <button id="modal-close-btn" style="border:none;background:none;font-size:20px;cursor:pointer;color:var(--t3)">✕</button>
+        <button style="border:none;background:none;font-size:20px;cursor:pointer;color:var(--t3)">✕</button>
       </div>
 
       <div style="display:flex;flex-direction:column;gap:1.2rem;margin-bottom:1.5rem">
@@ -3688,30 +3369,37 @@ function showEditCartaoModal(cartaoIdOrObj){
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
-        <button id="modal-cancel-btn" style="padding:.75rem;background:var(--bg);color:var(--t2);border:1px solid var(--b);border-radius:8px;font-weight:600;cursor:pointer;transition:all .2s">Cancelar</button>
-        <button id="modal-save-btn" style="padding:.75rem;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;transition:all .2s">Salvar</button>
+        <button style="padding:.75rem;background:var(--bg);color:var(--t2);border:1px solid var(--b);border-radius:8px;font-weight:600;cursor:pointer;transition:all .2s">Cancelar</button>
+        <button style="padding:.75rem;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;transition:all .2s">Salvar</button>
       </div>
     `;
 
+  // Attach event handlers
+  const closeBtn=content.querySelector('button:first-of-type');
+  const cancelBtn=content.querySelectorAll('button')[1];
+  const saveBtn=content.querySelector('button:last-of-type');
+
+  closeBtn.onclick=()=>modal.remove();
+  cancelBtn.onclick=()=>modal.remove();
+  saveBtn.onclick=async()=>{
+    // Aguardar salvamento antes de fechar modal
+    const sucesso=await salvarEdicaoCartao(
+      '${cartao.id}',
+      content.querySelector('#input-limite').value,
+      content.querySelector('#input-fechamento').value,
+      content.querySelector('#input-vencimento').value
+    );
+    // Só remove modal se salvou com sucesso
+    if(sucesso!==false)modal.remove();
+  };
+
   modal.appendChild(content);
   document.body.appendChild(modal);
-
-  // Attach event handlers AFTER appending to DOM
-  document.getElementById('modal-close-btn').onclick=closeModal;
-  document.getElementById('modal-cancel-btn').onclick=closeModal;
-  document.getElementById('modal-save-btn').onclick=async()=>{
-    const sucesso=await salvarEdicaoCartao(
-      cartao.id,
-      document.getElementById('input-limite').value,
-      document.getElementById('input-fechamento').value,
-      document.getElementById('input-vencimento').value
-    );
-    if(sucesso!==false)closeModal();
-  };
 }
 
 async function salvarEdicaoCartao(cartaoId,novoLimite,novaDataFech,novaDataVenc){
   try{
+    console.log('💾 Salvando edição do cartão...');
 
     // Validar inputs
     if(!novoLimite||isNaN(parseFloat(novoLimite))){
@@ -3728,12 +3416,6 @@ async function salvarEdicaoCartao(cartaoId,novoLimite,novaDataFech,novaDataVenc)
         return null;
       }
       const[dd,mm]=dd_mm.split('/');
-      const dia=parseInt(dd,10);
-      const mes=parseInt(mm,10);
-      if(isNaN(dia)||isNaN(mes)||dia<1||dia>31||mes<1||mes>12){
-        alert('❌ Data inválida: dia deve ser 1-31, mês deve ser 1-12');
-        return null;
-      }
       return`${ano}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`;
     };
 
@@ -3761,7 +3443,7 @@ async function salvarEdicaoCartao(cartaoId,novoLimite,novaDataFech,novaDataVenc)
     // Salvar no Supabase
     const sb=getSB();
     if(sb&&faturaMaisRecente){
-      
+      console.log('📡 Atualizando fatura no Supabase...');
       const{error}=await sb
         .from('nosso_lar_faturas')
         .update({
@@ -3772,7 +3454,7 @@ async function salvarEdicaoCartao(cartaoId,novoLimite,novaDataFech,novaDataVenc)
         .eq('id',faturaMaisRecente.id);
 
       if(error){
-        
+        console.error('❌ Erro ao atualizar no Supabase:',error.message);
         alert('❌ Erro ao salvar no servidor');
         return;
       }
@@ -3782,9 +3464,10 @@ async function salvarEdicaoCartao(cartaoId,novoLimite,novaDataFech,novaDataVenc)
     saveData();
     await renderCartoesDesktopNovo();
 
+    console.log('✅ Cartão atualizado com sucesso');
     return true;  // Indicar sucesso
   }catch(e){
-    
+    console.error('❌ Erro ao salvar edição:',e.message);
     alert('❌ '+e.message);
     return false;  // Indicar falha
   }
@@ -3860,7 +3543,7 @@ function renderCartoesDesktop(){
 function renderVisaoGeralDesktopNovo(){
   const container=document.getElementById('page-visao-geral');
   if(!container){
-    
+    console.warn('⚠️ Container visão geral não encontrado');
     return;
   }
 
@@ -4429,16 +4112,8 @@ async function init(){
   const tbEl=document.getElementById('tb');if(tbEl)tbEl.addEventListener('click',tbDelegate);
   const tbMEl=document.getElementById('tb-m');if(tbMEl)tbMEl.addEventListener('click',tbDelegate);
 
-  // Responsividade com throttling (máx 1 vez a cada 250ms)
-  let resizeTimeout;
-  window.addEventListener('resize',()=>{
-    clearTimeout(resizeTimeout);
-    resizeTimeout=setTimeout(()=>{
-      checkLayout();
-      render();
-      renderSide();
-    },250);
-  });
+  // Responsividade
+  window.addEventListener('resize',()=>{checkLayout();render();renderSide();});
 
   // Autenticação e carregamento de dados
   await checkAuth();
@@ -4446,35 +4121,28 @@ async function init(){
     try{
       await loadFromDB();
 
-      // Carregar dados do Supabase para o novo dashboard
-      await initDashboard();
-
       if(isMob()){
         // Mobile: renderizar visão geral por padrão
-        
+        console.log('📱 Mobile - renderizando Visão Geral');
         render();
         renderSide();
         renderSideGeral();
         const headerEl=document.getElementById('lanc-header-mes');
         if(headerEl)headerEl.textContent=MN[+mes.slice(5)-1];
       } else {
-        // Desktop: renderizar novo dashboard por padrão
-
-        // Mostrar novo dashboard por padrão
-        dashboardMode = true;
-        document.getElementById('dashboard-container').style.display = 'block';
-        document.getElementById('desktop-tabs').style.display = 'none';
-        document.querySelectorAll('.page-container').forEach(p => p.style.display = 'none');
-
-        // Mas manter dados das abas carregados em background
+        // Desktop: renderizar abas
+        console.log('🖥️ Desktop - renderizando abas');
         render();
         renderSide();
         renderSideGeral();
 
-        // Checar hash e renderizar página apropriada (se usuário alternar para abas)
+        // Checar hash e renderizar página apropriada
         const hash=window.location.hash.slice(1)||'lancamentos';
         const validPages=['lancamentos','cartoes','visao-geral'];
         const pageToLoad=validPages.includes(hash)?hash:'lancamentos';
+
+        console.log('📄 Carregando página:', pageToLoad);
+        await switchPage(pageToLoad);
 
         // Listener para mudanças de hash
         window.addEventListener('hashchange',()=>{
@@ -4484,14 +4152,13 @@ async function init(){
           }
         });
 
-        // Onboarding desativado - acesso direto
+        // Mostrar onboarding se primeira vez
+        if(!sessionStorage.getItem('onboarding-shown')){
+          setTimeout(showOnboarding,500);
+        }
       }
     }
-    catch(e){
-      // Erro na inicialização - mostrar mensagem mas continuar
-      document.getElementById('app-root').style.display='block';
-      toast('Erro ao inicializar aplicação','error');
-    }
+    catch(e){console.warn('DB:',e?.message||e);}
   }
 }
 init();
@@ -4537,242 +4204,6 @@ function toast(msg,tipo='success',duracao=3000){
     setTimeout(()=>t.remove(),300);
   },duracao);
 }
-
-// ═══════════════════════════════════════════════════════════
-// NEW DASHBOARD - SUPABASE INTEGRATION
-// ═══════════════════════════════════════════════════════════
-
-let supabaseData = null;
-let dashboardMode = true; // true = novo dashboard, false = abas clássicas
-
-function toggleDashboard() {
-  dashboardMode = !dashboardMode;
-  const dashContainer = document.getElementById('dashboard-container');
-  const desktopTabs = document.getElementById('desktop-tabs');
-  const pages = document.querySelectorAll('.page-container');
-  const toggleBtn = document.getElementById('toggle-dashboard');
-
-  if (dashboardMode) {
-    // Mostrar novo dashboard
-    dashContainer.style.display = 'block';
-    desktopTabs.style.display = 'none';
-    pages.forEach(p => p.style.display = 'none');
-    toggleBtn.innerText = '📊';
-    toggleBtn.setAttribute('data-tooltip', 'Alternar para visão clássica');
-    toast('Dashboard novo ativado ✨', 'success');
-  } else {
-    // Mostrar abas clássicas
-    dashContainer.style.display = 'none';
-    desktopTabs.style.display = 'flex';
-    document.querySelector('.page-container.active')?.style.display === 'none' ? (pages[0].style.display = 'block', pages[0].classList.add('active')) : null;
-    toggleBtn.innerText = '📈';
-    toggleBtn.setAttribute('data-tooltip', 'Alternar para novo dashboard');
-    toast('Abas clássicas ativadas', 'success');
-  }
-}
-
-async function loadSupabaseData() {
-  try {
-    const sb = getSB();
-    if (!sb) {
-      
-      return null;
-    }
-
-    const { data, error } = await sb
-      .from('financial_data')
-      .select('data')
-      .eq('id', 1)
-      .single();
-
-    if (error) throw error;
-    supabaseData = data?.data || {};
-    );
-    return supabaseData;
-  } catch (err) {
-    
-    return null;
-  }
-}
-
-function formatCurrency(value) {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL'
-  }).format(value || 0);
-}
-
-function getMonthData(monthKey) {
-  if (!supabaseData) return [];
-  return supabaseData[monthKey] || [];
-}
-
-function calculateMonthMetrics(monthKey) {
-  const data = getMonthData(monthKey);
-  let entradas = 0, saidas = 0;
-
-  data.forEach(l => {
-    if (l.tipo === 'in') entradas += l.valor || 0;
-    if (l.tipo === 'out') saidas += l.valor || 0;
-  });
-
-  return { entradas, saidas, resultado: entradas - saidas };
-}
-
-function getTopCategories(monthKey, limit = 5) {
-  const data = getMonthData(monthKey);
-  const categories = {};
-
-  data.forEach(l => {
-    if (l.tipo === 'out' && l.cat) {
-      if (!categories[l.cat]) categories[l.cat] = 0;
-      categories[l.cat] += l.valor || 0;
-    }
-  });
-
-  return Object.entries(categories)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit);
-}
-
-function getRecentTransactions(monthKey, limit = 10) {
-  const data = getMonthData(monthKey);
-  return data
-    .sort((a, b) => new Date(b.venc) - new Date(a.venc))
-    .slice(0, limit);
-}
-
-async function initDashboard() {
-  await loadSupabaseData();
-
-  if (supabaseData && Object.keys(supabaseData).length > 0) {
-    const latestMonth = Object.keys(supabaseData)
-      .filter(k => k.includes('-'))
-      .sort()
-      .pop();
-
-    if (latestMonth) {
-      
-      renderDashboard(latestMonth);
-    }
-  }
-}
-
-function renderDashboard(monthKey) {
-  const container = document.getElementById('dashboard-container');
-  if (!container) return;
-
-  const metrics = calculateMonthMetrics(monthKey);
-  const topCategories = getTopCategories(monthKey);
-  const recentTx = getRecentTransactions(monthKey);
-
-  // HTML do Dashboard
-  container.innerHTML = `
-    <div style="padding: 1.5rem; max-width: 1400px; margin: 0 auto;">
-
-      <!-- RESUMO CARDS -->
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
-        <div style="background: var(--w); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--b); box-shadow: 0 1px 3px rgba(0,0,0,.08);">
-          <div style="font-size: 11px; color: var(--t2); font-weight: 600; text-transform: uppercase; margin-bottom: 0.5rem;">📥 Entradas</div>
-          <div style="font-size: 22px; font-weight: 700; color: var(--g);">${formatCurrency(metrics.entradas)}</div>
-        </div>
-
-        <div style="background: var(--w); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--b); box-shadow: 0 1px 3px rgba(0,0,0,.08);">
-          <div style="font-size: 11px; color: var(--t2); font-weight: 600; text-transform: uppercase; margin-bottom: 0.5rem;">📤 Saídas</div>
-          <div style="font-size: 22px; font-weight: 700; color: var(--r);">${formatCurrency(metrics.saidas)}</div>
-        </div>
-
-        <div style="background: var(--w); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--b); box-shadow: 0 1px 3px rgba(0,0,0,.08); border-top: 4px solid ${metrics.resultado >= 0 ? 'var(--g)' : 'var(--r)'};">
-          <div style="font-size: 11px; color: var(--t2); font-weight: 600; text-transform: uppercase; margin-bottom: 0.5rem;">📈 Resultado</div>
-          <div style="font-size: 22px; font-weight: 700; color: ${metrics.resultado >= 0 ? 'var(--g)' : 'var(--r)'};">${formatCurrency(metrics.resultado)}</div>
-        </div>
-      </div>
-
-      <!-- LAYOUT PRINCIPAL -->
-      <div style="display: grid; grid-template-columns: 1fr 320px; gap: 1.5rem;">
-
-        <!-- COLUNA PRINCIPAL -->
-        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-
-          <!-- CATEGORIAS TOP -->
-          <div style="background: var(--w); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--b); box-shadow: 0 1px 3px rgba(0,0,0,.08);">
-            <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 1rem;">🏷️ Maiores Gastos</h3>
-            ${topCategories.length > 0 ? `
-              <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                ${topCategories.map(([cat, valor]) => `
-                  <div style="padding: 0.75rem; background: var(--bg); border-radius: 8px;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 12px;">
-                      <span style="color: var(--t2); font-weight: 600;">${cat}</span>
-                      <span style="color: var(--t); font-weight: 700;">${formatCurrency(valor)}</span>
-                    </div>
-                    <div style="height: 6px; background: var(--b); border-radius: 3px; overflow: hidden;">
-                      <div style="height: 100%; width: ${(valor / topCategories[0][1]) * 100}%; background: var(--r);"></div>
-                    </div>
-                  </div>
-                `).join('')}
-              </div>
-            ` : '<div style="color: var(--t3); text-align: center; padding: 1.5rem;">Sem gastos neste mês</div>'}
-          </div>
-
-          <!-- ÚLTIMOS LANÇAMENTOS -->
-          <div style="background: var(--w); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--b); box-shadow: 0 1px 3px rgba(0,0,0,.08);">
-            <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 1rem;">📋 Últimos Lançamentos</h3>
-            ${recentTx.length > 0 ? `
-              <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                ${recentTx.slice(0, 10).map(l => `
-                  <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; border-bottom: 1px solid var(--b); font-size: 12px;">
-                    <div>
-                      <div style="font-weight: 600; color: var(--t);">${l.desc}</div>
-                      <div style="font-size: 11px; color: var(--t3);">${l.cat || 'Sem categoria'} • ${new Date(l.venc).toLocaleDateString('pt-BR')}</div>
-                    </div>
-                    <div style="font-weight: 700; color: ${l.tipo === 'in' ? 'var(--g)' : 'var(--r)'};">
-                      ${l.tipo === 'in' ? '+' : '-'} ${formatCurrency(l.valor)}
-                    </div>
-                  </div>
-                `).join('')}
-              </div>
-            ` : '<div style="color: var(--t3); text-align: center; padding: 1.5rem;">Sem lançamentos neste mês</div>'}
-          </div>
-        </div>
-
-        <!-- SIDEBAR -->
-        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-
-          <!-- INFO MÊS -->
-          <div style="background: linear-gradient(135deg, var(--g) 0%, #158a3e 100%); color: white; padding: 1.5rem; border-radius: 12px;">
-            <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; opacity: 0.8; margin-bottom: 0.5rem;">Período</div>
-            <div style="font-size: 18px; font-weight: 700; margin-bottom: 1rem;">${monthKey}</div>
-            <div style="font-size: 12px; opacity: 0.9;">
-              ${recentTx.length} transações
-            </div>
-          </div>
-
-          <!-- ESTATÍSTICAS RÁPIDAS -->
-          <div style="background: var(--w); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--b); box-shadow: 0 1px 3px rgba(0,0,0,.08);">
-            <h4 style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--t2); margin-bottom: 1rem;">Análise</h4>
-            <div style="display: flex; flex-direction: column; gap: 0.75rem; font-size: 12px;">
-              <div style="display: flex; justify-content: space-between;">
-                <span style="color: var(--t2);">Transações:</span>
-                <span style="font-weight: 700;">${recentTx.length}</span>
-              </div>
-              <div style="display: flex; justify-content: space-between;">
-                <span style="color: var(--t2);">Categorias:</span>
-                <span style="font-weight: 700;">${topCategories.length}</span>
-              </div>
-              <div style="display: flex; justify-content: space-between;">
-                <span style="color: var(--t2);">Ticket médio:</span>
-                <span style="font-weight: 700;">${formatCurrency((metrics.saidas) / (recentTx.filter(l => l.tipo === 'out').length || 1))}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-// Removido: Delay desnecessário de 1000ms
-// initDashboard() é chamado em init() que executa imediatamente
 
 let deferredPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;if(!sessionStorage.getItem('pwa-dismissed')){const b=document.createElement('div');b.style.cssText='position:fixed;bottom:calc(76px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:#1a1d23;color:#fff;padding:.65rem 1.1rem;border-radius:99px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:.75rem;box-shadow:0 8px 24px rgba(0,0,0,.3);z-index:999;white-space:nowrap;font-family:Inter,sans-serif';b.innerHTML='🏠 Adicionar à tela inicial <button onclick="deferredPrompt?.prompt();this.parentNode.remove()" style="background:#1DB954;border:none;color:#fff;border-radius:99px;padding:.3rem .85rem;font-size:12px;font-weight:700;cursor:pointer;font-family:Inter,sans-serif">Instalar</button><button onclick="sessionStorage.setItem(\'pwa-dismissed\',1);this.parentNode.remove()" style="background:none;border:none;color:#9ca3af;font-size:18px;cursor:pointer;line-height:1">×</button>';document.body.appendChild(b);setTimeout(()=>b?.remove(),12000);}});
 </script>

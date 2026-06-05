@@ -477,12 +477,12 @@ const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJl
 let _sb=null,_session=null;
 function getSB(){if(!_sb){const s=window.supabase||(typeof supabase!=='undefined'?supabase:null);if(s)_sb=s.createClient(SB_URL2,SB_ANON,{auth:{detectSessionInUrl:true,persistSession:true,autoRefreshToken:true}});}return _sb;}
 async function getAuthHeader(){const sb=getSB();if(!sb)return{};const{data}=await sb.auth.getSession();const t=data?.session?.access_token;return t?{'Authorization':'Bearer '+t}:{};}
-async function checkAuth(){const sb=getSB();if(!sb){showApp();return;}const{data:{session}}=await sb.auth.getSession();if(session){_session=session;if(window.location.hash.includes('access_token'))window.history.replaceState(null,'',window.location.pathname);showApp();}else{showLogin();}}
-function showLogin(){document.getElementById('login-screen').style.display='flex';document.getElementById('app-root').style.display='none';setTimeout(()=>document.getElementById('login-email')?.focus(),200);}
+async function checkAuth(){showApp();}
+function showLogin(){} // Auth disabled - not used
 function showApp(){document.getElementById('login-screen').style.display='none';document.getElementById('app-root').style.display='block';}
 async function sendMagicLink(){const eEl=document.getElementById('login-email');const btn=document.getElementById('login-btn');const err=document.getElementById('login-err');const email=eEl?.value.trim();if(!email){showLE('Digite seu e-mail');return;}if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){showLE('E-mail inválido');return;}btn.textContent='Enviando…';btn.style.opacity='.7';btn.disabled=true;err.style.display='none';const sb=getSB();const redir=window.location.origin+window.location.pathname;const{error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:redir}});if(error){btn.textContent='Enviar link de acesso ✉️';btn.style.opacity='1';btn.disabled=false;showLE(error.message);return;}document.getElementById('login-step-email').style.display='none';document.getElementById('login-sent-email').innerHTML='Enviamos um link para <strong>'+email+'</strong><br>Abra o e-mail e clique no link para entrar.';document.getElementById('login-step-sent').style.display='flex';}
 function showLE(m){const e=document.getElementById('login-err');if(e){e.textContent=m;e.style.display='block';}}
-async function doLogout(){const sb=getSB();if(sb)await sb.auth.signOut();_session=null;showLogin();}
+async function doLogout(){} // Auth disabled - not used
 
 function syncStatus(msg,color){const el=document.getElementById('sync-status');if(!el)return;el.textContent=msg;el.style.color=color||'rgba(255,255,255,.9)';}
 async function loadFromDB(){try{const h=await getAuthHeader();const r=await fetch(EDGE_URL,{headers:h});if(r.status===401||r.status===403){showLogin();return;}if(!r.ok)throw new Error('HTTP '+r.status);const saved=await r.json();if(saved&&typeof saved==='object'&&Object.keys(saved).length>0){Object.entries(saved).forEach(([k,v])=>{if(Array.isArray(v)){if(!D[k])D[k]=[];v.forEach(sv=>{const i=D[k].findIndex(e=>e.id===sv.id);if(i>=0)Object.assign(D[k][i],sv);else D[k].push(sv);});}else if(v&&typeof v==='object'&&!Array.isArray(v)){D[k]=Object.assign(D[k]||{},v);}});}syncStatus('✅ sincronizado','rgba(255,255,255,.9)');setTimeout(()=>syncStatus(''),3000);}catch(e){console.error('loadFromDB:',e.message);syncStatus('⚠ erro','#fbbf24');setTimeout(()=>syncStatus(''),4000);}}
@@ -1248,11 +1248,13 @@ async function init(){
   const tbEl=document.getElementById('tb');if(tbEl)tbEl.addEventListener('click',tbDelegate);
   const tbMEl=document.getElementById('tb-m');if(tbMEl)tbMEl.addEventListener('click',tbDelegate);
   window.addEventListener('resize',()=>{checkLayout();render();renderSide();});
-  await checkAuth();
-  if(document.getElementById('app-root').style.display!=='none'){
-    try{await loadFromDB();render();renderSide();}
-    catch(e){console.warn('DB:',e?.message||e);}
-  }
+
+  // Auth disabled - show app directly
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app-root').style.display='block';
+
+  try{await loadFromDB();render();renderSide();}
+  catch(e){console.warn('DB:',e?.message||e);}
 }
 init();
 </script>
