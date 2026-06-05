@@ -767,11 +767,20 @@
   }
 
   // ==================== INIT ====================
-  document.getElementById('login-btn').addEventListener('click', login);
-  document.getElementById('logout-btn').addEventListener('click', logout);
+  window.addEventListener('DOMContentLoaded', () => {
+    initSupabase();
+    checkAuth();
 
-  initSupabase();
-  checkAuth();
+    const loginBtn = document.getElementById('login-btn');
+    if (loginBtn) {
+      loginBtn.addEventListener('click', login);
+    }
+
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', logout);
+    }
+  });
 </script>
 
 </body>
