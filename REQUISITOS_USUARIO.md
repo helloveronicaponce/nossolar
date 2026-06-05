@@ -145,13 +145,46 @@ this.closest('div').parentNode.remove()
 
 ## 🎯 ORDEM DE CORREÇÃO (RECOMENDADA)
 
-### Fase 1 - CRÍTICA (hoje)
-1. ✅ Carregar dados de Lançamentos no init()
-2. ✅ Corrigir saldo projetado final
-3. ✅ Conectar saldo inicial mês seguinte
-4. ✅ Corrigir fechamento de modal
-5. ✅ Buscar e exibir histórico de faturas
-6. ✅ Conectar dados com Visão Geral (consolidar Lançamentos + Cartões)
+### Fase 1 - CRÍTICA (COMPLETO ✅)
+1. ✅ **Carregar dados de Lançamentos no init()**
+   - Status: RESOLVIDO em sessão anterior
+   - Mudança: Adicionado `await` antes de `switchPage(pageToLoad)` em init()
+   - Resultado: Lançamentos agora carregam corretamente ao iniciar
+
+2. ✅ **Corrigir saldo projetado final**
+   - Status: RESOLVIDO
+   - Problema: Cálculo incorreto de `saldoProj` em renderLancamentosDesktop()
+   - Antes: `saldoProj = saldoAtual + aReceber - pendentes` (fórmula incorreta)
+   - Depois: `saldoProj = saldoAtual + pendIn - pendOut` (fórmula correta)
+   - Arquivo: index.html linhas 2370-2377
+
+3. ✅ **Conectar saldo inicial mês seguinte**
+   - Status: JÁ IMPLEMENTADO
+   - Verificado: `getSI()` já chama `getSaldoFinal()` do mês anterior
+   - Implementação correta: Saldo inicial N+1 = Saldo final N
+
+4. ✅ **Corrigir fechamento de modal**
+   - Status: RESOLVIDO
+   - Problema: Modais em showCartaoDetalhes() e showEditCartaoModal() não fechavam
+   - Solução: 
+     - Refatorado para separar modal backdrop do conteúdo
+     - Adicionado `modal.onclick` para fechar ao clicar fora
+     - Implementado proper event handlers para X e Cancel/Save
+   - Arquivos: index.html linhas 3155-3195 (showCartaoDetalhes) e 3213-3252 (showEditCartaoModal)
+
+5. ✅ **Buscar e exibir histórico de faturas**
+   - Status: JÁ IMPLEMENTADO
+   - Verificado: showCartaoDetalhes() já renderiza D._faturasRaw filtrado por cartão
+   - Mostra: Últimas faturas com data, status, categoria e valor total
+
+6. ✅ **Conectar dados com Visão Geral (consolidar Lançamentos + Cartões)**
+   - Status: RESOLVIDO
+   - Problema: calcularDadosFinanceiros() e renderGraficoEntradasSaidas() usavam tipos errados
+   - Mudanças:
+     - Corrigido: tipo='ent' → tipo='in' (lançamentos de entrada)
+     - Adicionado: Consolidação de D._faturas (cartões) aos cálculos
+     - Adicionado: getSI() em vez de valor fixo para saldo inicial
+   - Arquivos: index.html linhas 3650-3690
 
 ### Fase 2 - ALTA
 7. ✅ Melhorar distribuição de colunas na tabela
