@@ -586,7 +586,7 @@ const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJl
 let _sb=null,_session=null;
 function getSB(){if(!_sb){const s=window.supabase||(typeof supabase!=='undefined'?supabase:null);if(s)_sb=s.createClient(SB_URL2,SB_ANON,{auth:{detectSessionInUrl:true,persistSession:true,autoRefreshToken:true}});}return _sb;}
 async function getAuthHeader(){const sb=getSB();if(!sb)return{};const{data}=await sb.auth.getSession();const t=data?.session?.access_token;return t?{'Authorization':'Bearer '+t}:{};}
-async function checkAuth(){const sb=getSB();if(!sb){showApp();return;}const{data:{session}}=await sb.auth.getSession();if(session){_session=session;if(window.location.hash.includes('access_token'))window.history.replaceState(null,'',window.location.pathname);showApp();}else{showLogin();}}
+async function checkAuth(){const sb=getSB();if(!sb){console.warn('⚠️ Supabase não carregado');showApp();return;}const{data:{session}}=await sb.auth.getSession();if(session){console.log('✅ Usuário autenticado:', session.user?.email);_session=session;if(window.location.hash.includes('access_token'))window.history.replaceState(null,'',window.location.pathname);showApp();}else{console.log('❌ Usuário não autenticado');showLogin();}}
 function showLogin(){document.getElementById('login-screen').style.display='flex';document.getElementById('app-root').style.display='none';setTimeout(()=>document.getElementById('login-email')?.focus(),200);}
 function showApp(){document.getElementById('login-screen').style.display='none';document.getElementById('app-root').style.display='block';}
 async function sendMagicLink(){const eEl=document.getElementById('login-email');const btn=document.getElementById('login-btn');const err=document.getElementById('login-err');const email=eEl?.value.trim();if(!email){showLE('Digite seu e-mail');return;}if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){showLE('E-mail inválido');return;}btn.textContent='Enviando…';btn.style.opacity='.7';btn.disabled=true;err.style.display='none';const sb=getSB();const redir=window.location.origin+window.location.pathname;const{error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:redir}});if(error){btn.textContent='Enviar link de acesso ✉️';btn.style.opacity='1';btn.disabled=false;showLE(error.message);return;}document.getElementById('login-step-email').style.display='none';document.getElementById('login-sent-email').innerHTML='Enviamos um link para <strong>'+email+'</strong><br>Abra o e-mail e clique no link para entrar.';document.getElementById('login-step-sent').style.display='flex';}
@@ -594,16 +594,88 @@ function showLE(m){const e=document.getElementById('login-err');if(e){e.textCont
 async function doLogout(){const sb=getSB();if(sb)await sb.auth.signOut();_session=null;showLogin();}
 
 function syncStatus(msg,color){const el=document.getElementById('sync-status');if(!el)return;el.textContent=msg;el.style.color=color||'rgba(255,255,255,.9)';}
-async function loadFromDB(){try{const h=await getAuthHeader();if(!h.Authorization){throw new Error('No auth token');}const r=await fetch(EDGE_URL,{headers:h,timeout:5000});if(r.status===401||r.status===403){throw new Error('Auth failed');}if(!r.ok){throw new Error('HTTP '+r.status);}const saved=await r.json();const hasRealData=saved&&typeof saved==='object'&&Object.keys(saved).filter(k=>k!=='month').length>0;if(hasRealData){Object.entries(saved).forEach(([k,v])=>{if(Array.isArray(v)){if(!D[k])D[k]=[];v.forEach(sv=>{const i=D[k].findIndex(e=>e.id===sv.id);if(i>=0)Object.assign(D[k][i],sv);else D[k].push(sv);});}else if(v&&typeof v==='object'&&!Array.isArray(v)){D[k]=Object.assign(D[k]||{},v);}});saveToLocalStorage();}else{throw new Error('Empty response');}syncStatus('✅ sincronizado','rgba(255,255,255,.9)');setTimeout(()=>syncStatus(''),3000);}catch(e){try{const stored=localStorage.getItem('nosso-lar-backup');if(stored){const backup=JSON.parse(stored);if(backup&&Object.keys(backup).length>2){Object.assign(D,backup);return;}}else{}initializeDefaultData();syncStatus('⚠ conexão falhou - usando dados padrão','#fbbf24');setTimeout(()=>syncStatus(''),5000);}}
-function saveToLocalStorage(){try{localStorage.setItem('nosso-lar-backup',JSON.stringify(D));}catch(e){}}
+async function loadFromDB(){try{console.log('📡 CARREGAMENTO: Tentativa 1 - Supabase Edge Function');const h=await getAuthHeader();if(!h.Authorization){console.warn('❌ Sem token de autenticação, pulando Supabase');throw new Error('No auth token');}const r=await fetch(EDGE_URL,{headers:h,timeout:5000});console.log('📥 Resposta Supabase:', r.status);if(r.status===401||r.status===403){console.warn('⚠️ Não autenticado (401/403)');throw new Error('Auth failed');}if(!r.ok){console.warn('⚠️ Edge Function erro HTTP '+r.status);throw new Error('HTTP '+r.status);}const saved=await r.json();console.log('💾 Dados brutos:', JSON.stringify(saved).slice(0,200)+'...');const hasRealData=saved&&typeof saved==='object'&&Object.keys(saved).filter(k=>k!=='month').length>0;if(hasRealData){console.log('✅ Dados válidos do Supabase');Object.entries(saved).forEach(([k,v])=>{if(Array.isArray(v)){if(!D[k])D[k]=[];v.forEach(sv=>{const i=D[k].findIndex(e=>e.id===sv.id);if(i>=0)Object.assign(D[k][i],sv);else D[k].push(sv);});}else if(v&&typeof v==='object'&&!Array.isArray(v)){D[k]=Object.assign(D[k]||{},v);}});console.log('✅ Dados Supabase carregados em D');saveToLocalStorage();}else{console.log('⚠️ Dados vazios do Supabase, tentando localStorage...');throw new Error('Empty response');}syncStatus('✅ sincronizado','rgba(255,255,255,.9)');setTimeout(()=>syncStatus(''),3000);}catch(e){console.warn('❌ Supabase falhou:',e.message);try{console.log('📡 CARREGAMENTO: Tentativa 2 - localStorage');const stored=localStorage.getItem('nosso-lar-backup');if(stored){const backup=JSON.parse(stored);if(backup&&Object.keys(backup).length>2){console.log('✅ Dados encontrados em localStorage');Object.assign(D,backup);return;}}else{console.log('⚠️ localStorage vazio')}}catch(e2){console.error('❌ localStorage falhou:',e2.message);}console.log('📡 CARREGAMENTO: Tentativa 3 - Dados padrão');initializeDefaultData();syncStatus('⚠ conexão falhou - usando dados padrão','#fbbf24');setTimeout(()=>syncStatus(''),5000);}}
+function saveToLocalStorage(){try{localStorage.setItem('nosso-lar-backup',JSON.stringify(D));console.log('💾 Backup salvo em localStorage');}catch(e){console.warn('⚠️ localStorage indisponível:',e.message);}}
 
 let _st=null;
-function saveData(){clearTimeout(_st);syncStatus('💾 salvando…','rgba(255,255,255,.7)');_st=setTimeout(async()=>{try{const h=await getAuthHeader();const r=await fetch(EDGE_URL,{method:'POST',headers:{...h,'Content-Type':'application/json'},body:JSON.stringify(D)});if(!r.ok)throw new Error('HTTP '+r.status);const resp=await r.json();saveToLocalStorage();syncStatus('✅ salvo','#fff');setTimeout(()=>syncStatus(''),3000);}catch(e){saveToLocalStorage();syncStatus('⚠ salvo localmente','#fbbf24');}},2000);}
+function saveData(){clearTimeout(_st);syncStatus('💾 salvando…','rgba(255,255,255,.7)');_st=setTimeout(async()=>{try{const h=await getAuthHeader();console.log('💾 Salvando dados:', Object.keys(D).length,'chaves');const r=await fetch(EDGE_URL,{method:'POST',headers:{...h,'Content-Type':'application/json'},body:JSON.stringify(D)});console.log('📤 POST resposta:', r.status);if(!r.ok)throw new Error('HTTP '+r.status);const resp=await r.json();console.log('✅ Edge Function respondeu');saveToLocalStorage();syncStatus('✅ salvo','#fff');setTimeout(()=>syncStatus(''),3000);}catch(e){console.error('❌ Erro ao salvar em Supabase:',e.message);saveToLocalStorage();syncStatus('⚠ salvo localmente','#fbbf24');}},2000);}
 
-function initializeDefaultData(){syncStatus('❌ sem dados - Edge Function vazia','#dc2626');}
+function initializeDefaultData(){console.log('❌ ERRO CRÍTICO: Nenhum dado disponível');console.error('Edge Function não retornou dados reais para o usuário');syncStatus('❌ sem dados - Edge Function vazia','#dc2626');}
 
 /* ── DIAGNÓSTICO ── */
-async function testConnection(){const sb=getSB();if(!sb)return;const{data:{session}}=await sb.auth.getSession();const h=await getAuthHeader();try{const r=await fetch(EDGE_URL,{headers:h});if(r.ok){const data=await r.json();}}catch(e){}}
+async function testConnection(){console.log('🔧 === TESTE DE CONEXÃO ===');console.log('1️⃣ Testando Supabase...');const sb=getSB();console.log('   Supabase carregado:', sb?'✅ Sim':'❌ Não');if(!sb)return;console.log('2️⃣ Testando autenticação...');const{data:{session}}=await sb.auth.getSession();console.log('   Usuário autenticado:', session?'✅ '+session.user?.email:'❌ Não');console.log('3️⃣ Testando Auth Header...');const h=await getAuthHeader();console.log('   Auth header:', Object.keys(h).length>0?'✅ Presente':'❌ Vazio');console.log('4️⃣ Testando Edge Function...');try{const r=await fetch(EDGE_URL,{headers:h});console.log('   Status HTTP:', r.status);if(r.ok){const data=await r.json();console.log('   Dados retornados:', data?Object.keys(data).length:'0','chaves');}}catch(e){console.error('   Erro:', e.message);}console.log('=== FIM DO TESTE ===');}
+window.testConnection=testConnection;
+
+/* ── DEBUG TOOLS ── */
+window.debugCartoes=()=>{
+  console.log('%c═══ DEBUG CARTÕES ═══', 'color: #1DB954; font-weight: bold; font-size: 14px');
+  console.log('📋 Cartões:', getCartoes());
+  console.log('💾 D._faturas (por mês/cartão):', D._faturas);
+  console.log('💳 D._limites (limites):', D._limites);
+  console.log('📊 D._faturasRaw (brutos):', D._faturasRaw?.length||0, 'itens');
+  if(D._faturasRaw?.length>0){
+    console.log('Amostra (primeiras 3):', D._faturasRaw.slice(0,3));
+    console.log('Total por mês:', Object.keys(D._faturas||{}).sort());
+  } else {
+    console.warn('⚠️ Nenhum dado disponível!');
+  }
+};
+
+window.recarregarFaturas=async()=>{
+  console.log('%c🔄 RECARREGANDO FATURAS DO SUPABASE', 'color: #0070c0; font-weight: bold; font-size: 14px');
+  D._faturas={};
+  D._limites={};
+  D._faturasRaw=[];
+  await fetchFaturasFromSupabase();
+  console.log('✅ Faturas recarregadas');
+  await renderCartoesDesktopNovo();
+  console.log('✅ Página renderizada');
+  if(D._faturasRaw?.length>0){
+    toast('✅ '+D._faturasRaw.length+' faturas carregadas!', 'success');
+  } else {
+    toast('⚠️ Nenhuma fatura no Supabase', 'warning');
+  }
+};
+
+window.verificarSupabase=async()=>{
+  console.log('%c🔍 VERIFICANDO SUPABASE DIRETAMENTE', 'color: #9333ea; font-weight: bold; font-size: 14px');
+  const sb=getSB();
+  if(!sb){
+    console.error('❌ Supabase não disponível');
+    return;
+  }
+
+  try{
+    console.log('Consultando nosso_lar_faturas...');
+    const{data,error}=await sb.from('nosso_lar_faturas').select('*');
+
+    if(error){
+      console.error('%c❌ ERRO NA TABELA', 'color: #dc2626; font-weight: bold', error);
+      return;
+    }
+
+    console.log('%c✅ RESULTADO DIRETO DO SUPABASE:', 'color: #1DB954; font-weight: bold');
+    console.log('Total de linhas:', data?.length||0);
+    console.log('Estrutura da primeira linha:', data?.[0]);
+    console.log('Todos os dados:', data);
+
+    // Verificar campos
+    if(data?.length>0){
+      const primeira=data[0];
+      console.log('%c📋 Campos encontrados:', 'color: #0070c0; font-weight: bold');
+      console.log('Campos:', Object.keys(primeira));
+    }
+  }catch(e){
+    console.error('%c❌ ERRO CRÍTICO', 'color: #dc2626; font-weight: bold', e);
+  }
+};
+window.forcarCarregamentoFaturas=async()=>{
+  console.log('🔄 Forçando carregamento de faturas...');
+  await fetchFaturasFromSupabase();
+  console.log('✅ Faturas recarregadas');
+  await renderCartoesDesktopNovo();
+  console.log('✅ Página re-renderizada');
+};
 
 function showNotification(msg){
   // Usa o novo sistema de toast
@@ -988,7 +1060,7 @@ function render(){
   if(headerEl)headerEl.textContent=MN[+mes.slice(5)-1];
   closeDd();
   const all=rows();let list=[...all];
-  
+  console.log('🔍 render() - Lançamentos encontrados:', all.length, 'no mês', mes, '| Dados em D:', Object.keys(D).length > 0 ? 'SIM' : 'VAZIO');
   const srchEl=document.getElementById('srch')||document.getElementById('srch-m');
   const q=(srchEl?.value||'').toLowerCase();
   if(q)list=list.filter(r=>r.desc.toLowerCase().includes(q)||(r.obs||'').toLowerCase().includes(q));
@@ -1138,12 +1210,12 @@ function renderSideGeral(){
     +'<div style="font-size:13px;color:var(--t2)">Parcelas quitadas</div>'
     +'<div style="font-size:22px;font-weight:700;margin:4px 0 2px">36 <span style="font-size:14px;font-weight:400;color:var(--t3)">de 48</span></div>'
     +'<div class="pb2"><div class="pf" style="width:75%;background:#9c27b0"></div></div>'
-    +'<div class="ins"><div class="in2"><div class="l">Parcelas abertas</div><div class="v">12</div></div><div class="in2"><div class="l">Saldo restante</div><div class="v" style="color:var(--r)">'+fv((D._meta||{}).saldoSpin||0)+'</div></div><div class="in2"><div class="l">Parcela mensal</div><div class="v">'+fv((D._meta||{}).parcelaSpinMensal||0)+'</div></div><div class="in2"><div class="l">Quitação</div><div class="v" style="font-size:12px">${(D._meta||{}).quitacaoSpin||'—'}</div></div></div></div>'
+    +'<div class="ins"><div class="in2"><div class="l">Parcelas abertas</div><div class="v">12</div></div><div class="in2"><div class="l">Saldo restante</div><div class="v" style="color:var(--r)">'+fv(27466.20)+'</div></div><div class="in2"><div class="l">Parcela mensal</div><div class="v">'+fv(2288.85)+'</div></div><div class="in2"><div class="l">Quitação</div><div class="v" style="font-size:12px">Set/2026</div></div></div></div>'
     +'<div class="card"><div class="sh"><div class="si2" style="background:#e8f5e9">🏡</div><div class="st">Imóvel</div></div>'
     +'<div style="font-size:13px;color:var(--t2)">Parcelas quitadas</div>'
     +'<div style="font-size:22px;font-weight:700;margin:4px 0 2px">4 <span style="font-size:14px;font-weight:400;color:var(--t3)">de 163</span></div>'
     +'<div class="pb2"><div class="pf" style="width:2.4%;background:var(--g)"></div></div>'
-    +'<div class="ins"><div class="in2"><div class="l">Valor total</div><div class="v">${fv((D._meta||{}).valorImovel||0)}</div></div><div class="in2"><div class="l">Saldo restante</div><div class="v">${fv((D._meta||{}).saldoImovel||0)}</div></div><div class="in2"><div class="l">Parcela mensal</div><div class="v">${fv((D._meta||{}).parcelaImovelMensal||0)}</div></div><div class="in2"><div class="l">Pago total</div><div class="v" style="color:var(--g)">${fv((D._meta||{}).pagotoImovel||0)}</div></div></div></div>';
+    +'<div class="ins"><div class="in2"><div class="l">Valor total</div><div class="v">R$ 570.000</div></div><div class="in2"><div class="l">Saldo restante</div><div class="v">R$ 556.000</div></div><div class="in2"><div class="l">Parcela mensal</div><div class="v">R$ 3.500</div></div><div class="in2"><div class="l">Pago total</div><div class="v" style="color:var(--g)">R$ 14.000</div></div></div></div>';
 }
 
 function buildCardItem(c,showPayBtn,compact){
@@ -1268,7 +1340,7 @@ function buildChartCartaoComFiltro(cartoes,data){
   });
 
   return '<svg viewBox="0 0 '+W+' '+H+'" width="100%" style="display:block">'+s+'</svg>';
-  }catch(e){return '<div style="padding:1rem;color:red">Erro ao renderizar gráfico: '+e.message+'</div>';}
+  }catch(e){console.error('Erro em buildChartCartaoComFiltro:',e);return '<div style="padding:1rem;color:red">Erro ao renderizar gráfico: '+e.message+'</div>';}
 }
 
 function buildCategoriesTable(){
@@ -1326,7 +1398,7 @@ function buildCategoriesTable(){
   html+='</tr></tbody></table></div>';
 
   return html;
-  }catch(e){return '<div style="padding:1rem;color:red">Erro ao renderizar tabela: '+e.message+'</div>';}
+  }catch(e){console.error('Erro em buildCategoriesTable:',e);return '<div style="padding:1rem;color:red">Erro ao renderizar tabela: '+e.message+'</div>';}
 }
 
 /* ── CARTÕES RICH ── */
@@ -1713,7 +1785,7 @@ function renderGestaoCartoes(){
   </div>`;
 
   el.innerHTML=html;
-  }catch(e){el.innerHTML='<div style="padding:1rem;color:red">Erro ao renderizar cartões: '+e.message+'</div>';}
+  }catch(e){console.error('Erro em renderGestaoCartoes:',e);el.innerHTML='<div style="padding:1rem;color:red">Erro ao renderizar cartões: '+e.message+'</div>';}
 }
 
 
@@ -1736,8 +1808,8 @@ function renderSide(){
     +'<div class="card"><div class="sh"><div class="si2" style="background:#fee2e2">📊</div><div class="st">Maiores gastos</div></div>'
     +top.map(([c,v])=>'<div class="cs"><div style="width:28px;height:28px;border-radius:8px;background:'+(CC[c]||'#9e9e9e')+'22;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">'+(CI[c]||'📦')+'</div><div class="cbw"><div class="cbl"><span>'+c+'</span><span>− '+fv(v)+'</span></div><div class="cbb"><div class="cbf" style="width:'+Math.round(v/mx*100)+'%;background:'+(CC[c]||'#9e9e9e')+'"></div></div></div></div>').join('')
     +'</div>'
-    +'<div class="card"><div class="sh"><div class="si2" style="background:#f3e5f5">🚗</div><div class="st">Spin — Porto Seguro</div></div><div style="font-size:13px;color:var(--t2)">Parcelas quitadas</div><div style="font-size:22px;font-weight:700;margin:4px 0 2px">36 <span style="font-size:14px;font-weight:400;color:var(--t3)">de 48</span></div><div class="pb2"><div class="pf" style="width:75%;background:#9c27b0"></div></div><div class="ins"><div class="in2"><div class="l">Parcelas abertas</div><div class="v">12</div></div><div class="in2"><div class="l">Saldo restante</div><div class="v" style="color:var(--r)">'+fv((D._meta||{}).saldoSpin||0)+'</div></div><div class="in2"><div class="l">Parcela mensal</div><div class="v">'+fv((D._meta||{}).parcelaSpinMensal||0)+'</div></div><div class="in2"><div class="l">Quitação</div><div class="v" style="font-size:12px">${(D._meta||{}).quitacaoSpin||'—'}</div></div></div></div>'
-    +'<div class="card"><div class="sh"><div class="si2" style="background:#e8f5e9">🏡</div><div class="st">Imóvel</div></div><div style="font-size:13px;color:var(--t2)">Parcelas quitadas</div><div style="font-size:22px;font-weight:700;margin:4px 0 2px">4 <span style="font-size:14px;font-weight:400;color:var(--t3)">de 163</span></div><div class="pb2"><div class="pf" style="width:2.4%;background:var(--g)"></div></div><div class="ins"><div class="in2"><div class="l">Valor total</div><div class="v">${fv((D._meta||{}).valorImovel||0)}</div></div><div class="in2"><div class="l">Saldo restante</div><div class="v">${fv((D._meta||{}).saldoImovel||0)}</div></div><div class="in2"><div class="l">Parcela mensal</div><div class="v">${fv((D._meta||{}).parcelaImovelMensal||0)}</div></div><div class="in2"><div class="l">Pago total</div><div class="v" style="color:var(--g)">${fv((D._meta||{}).pagotoImovel||0)}</div></div></div></div>'
+    +'<div class="card"><div class="sh"><div class="si2" style="background:#f3e5f5">🚗</div><div class="st">Spin — Porto Seguro</div></div><div style="font-size:13px;color:var(--t2)">Parcelas quitadas</div><div style="font-size:22px;font-weight:700;margin:4px 0 2px">36 <span style="font-size:14px;font-weight:400;color:var(--t3)">de 48</span></div><div class="pb2"><div class="pf" style="width:75%;background:#9c27b0"></div></div><div class="ins"><div class="in2"><div class="l">Parcelas abertas</div><div class="v">12</div></div><div class="in2"><div class="l">Saldo restante</div><div class="v" style="color:var(--r)">'+fv(27466.20)+'</div></div><div class="in2"><div class="l">Parcela mensal</div><div class="v">'+fv(2288.85)+'</div></div><div class="in2"><div class="l">Quitação</div><div class="v" style="font-size:12px">Set/2026</div></div></div></div>'
+    +'<div class="card"><div class="sh"><div class="si2" style="background:#e8f5e9">🏡</div><div class="st">Imóvel</div></div><div style="font-size:13px;color:var(--t2)">Parcelas quitadas</div><div style="font-size:22px;font-weight:700;margin:4px 0 2px">4 <span style="font-size:14px;font-weight:400;color:var(--t3)">de 163</span></div><div class="pb2"><div class="pf" style="width:2.4%;background:var(--g)"></div></div><div class="ins"><div class="in2"><div class="l">Valor total</div><div class="v">R$ 570.000</div></div><div class="in2"><div class="l">Saldo restante</div><div class="v">R$ 556.000</div></div><div class="in2"><div class="l">Parcela mensal</div><div class="v">R$ 3.500</div></div><div class="in2"><div class="l">Pago total</div><div class="v" style="color:var(--g)">R$ 14.000</div></div></div></div>'
     +'<div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;padding:.6rem .1rem .3rem">💳 Cartões de crédito</div>'
     +renderCartoesHTML();
 }
@@ -1757,10 +1829,10 @@ function editCartao(cid,field,el){
   if(el.querySelector('input'))return;
   const cartoes=getCartoes();const c=cartoes.find(x=>x.id===cid);if(!c)return;
   const isFatura=field==='fatura';
-  const inp=document.createElement('input');inp.type='number';const fatura=getFatura(cid);inp.value=isFatura?(fatura||0).toFixed(2):c[field];
+  const inp=document.createElement('input');inp.type='number';inp.value=isFatura?getFatura(cid).toFixed(2):c[field];
   inp.step=isFatura?'0.01':'1';inp.min='0';if(!isFatura)inp.max='31';inp.className='cc-inp';
   el.innerHTML='';el.appendChild(inp);inp.focus();inp.select();
-  const commit=()=>{const v=parseFloat(inp.value);if(!isNaN(v)&&v>=0){if(isFatura){setFatura(cid,+v.toFixed(2));}else{c[field]=Math.max(1,Math.min(31,Math.round(v)));D['_cartoes']=cartoes;}syncCartaoLancamento(c);saveData();toast('✅ Cartão atualizado com sucesso','success');}render();renderSide();};
+  const commit=()=>{const v=parseFloat(inp.value);if(!isNaN(v)&&v>=0){if(isFatura){setFatura(cid,+v.toFixed(2));}else{c[field]=Math.max(1,Math.min(31,Math.round(v)));D['_cartoes']=cartoes;}syncCartaoLancamento(c);saveData();}render();renderSide();};
   inp.addEventListener('blur',commit);inp.addEventListener('keydown',ev=>{if(ev.key==='Enter')inp.blur();if(ev.key==='Escape')renderSide();});inp.addEventListener('click',ev=>ev.stopPropagation());
 }
 function pagarFaturaCartao(cid){
@@ -2180,7 +2252,7 @@ function toggleDarkMode(){
   localStorage.setItem('darkMode',isDark?'1':'0');
   const toggle=document.getElementById('theme-toggle');
   if(toggle)toggle.textContent=isDark?'☀️':'🌙';
-  
+  console.log('🌙 Dark mode:',isDark?'ativado':'desativado');
   toast(isDark?'🌙 Modo escuro ativado':'☀️ Modo claro ativado');
 }
 
@@ -2248,7 +2320,7 @@ function showOnboarding(){
 
 /* ── DESKTOP PAGE NAVIGATION ── */
 async function switchPage(page){
-  
+  console.log('🔄 Mudando para página:', page);
 
   // Atualizar abas ativas
   document.querySelectorAll('.desktop-tab').forEach(tab=>{
@@ -2278,9 +2350,9 @@ async function switchPage(page){
       } else if(page==='visao-geral'){
         renderVisaoGeralDesktopNovo();
       }
-      
+      console.log('✅ Página carregada:', page);
     } catch(e){
-      
+      console.error('❌ Erro ao renderizar página:', e);
       pageEl.innerHTML='<div class="card" style="padding:2rem;text-align:center;color:var(--r)">Erro ao carregar página</div>';
     }
   }
@@ -2443,32 +2515,36 @@ document.addEventListener('DOMContentLoaded',()=>{
 /* ── FASE 1: Renderização de Faturas ── */
 async function fetchFaturasFromSupabase(){
   try{
+    console.log('%c📡 INICIANDO BUSCA DE FATURAS', 'color: #1DB954; font-weight: bold; font-size: 14px');
 
     const sb=getSB();
-    
+    console.log('✅ Supabase carregado:', !!sb);
     if(!sb){
-      
+      console.error('❌ Supabase não disponível');
       return;
     }
 
-    
+    console.log('🔍 Consultando tabela nosso_lar_faturas...');
     // Buscar dados da tabela nosso_lar_faturas
     const{data:faturas,error}=await sb
       .from('nosso_lar_faturas')
       .select('*')
       .order('mes_ref',{ascending:false});
 
-    
-    
-    
-    if(faturas?.length>0) 
+    console.log('%cRESPOSTA DO SUPABASE:', 'color: #0070c0; font-weight: bold');
+    console.log('  Sucesso:', !error);
+    console.log('  Faturas retornadas:', faturas?.length||0);
+    console.log('  Erro:', error?.message||'nenhum');
+    if(faturas?.length>0) console.log('  Amostra:', faturas.slice(0,2));
 
     if(error){
+      console.error('%c❌ ERRO NA QUERY', 'color: #dc2626; font-weight: bold', error);
       toast('❌ Erro ao buscar: '+error.message, 'error');
       return;
     }
 
     if(!faturas||faturas.length===0){
+      console.warn('%c⚠️ NENHUMA FATURA RETORNADA', 'color: #f59e0b; font-weight: bold');
       toast('❌ Nenhum dado de fatura no Supabase','error');
       D._faturas={};
       D._limites={};
@@ -2476,19 +2552,21 @@ async function fetchFaturasFromSupabase(){
       return;
     }
 
+    console.log('%c✅ SUCESSO! '+faturas.length+' faturas encontradas', 'color: #1DB954; font-weight: bold; font-size: 14px');
     await processarFaturas(faturas);
 
   }catch(e){
+    console.error('%c❌ ERRO CRÍTICO', 'color: #dc2626; font-weight: bold', e);
     toast('❌ Erro crítico ao buscar faturas', 'error');
   }
 }
 
 async function processarFaturas(faturas){
   try{
-    
+    console.log('🔄 Processando',faturas?.length||0,'faturas...');
 
     if(!faturas||faturas.length===0){
-      
+      console.warn('⚠️ Lista de faturas vazia!');
       return;
     }
 
@@ -2517,7 +2595,7 @@ async function processarFaturas(faturas){
       // Agrupar fatura_total por cartão
       const cartaoId=f.cartao;
       if(!cartaoId){
-        
+        console.warn('⚠️ Fatura sem cartão:', f);
         return;
       }
 
@@ -2541,13 +2619,13 @@ async function processarFaturas(faturas){
     D._limites=limites;
     D._faturasRaw=faturasComProjecao; // Armazenar dados brutos com projeção
 
-    
-    
-    
-    
+    console.log('✅ Faturas processadas:',Object.keys(faturasPorMes).length,'meses');
+    console.log('📊 Meses com dados:', Object.keys(faturasPorMes).sort());
+    console.log('💳 Cartões identificados:', Object.keys(limites));
+    console.log('✅ D._faturasRaw tem',faturasComProjecao.length,'itens com categorias');
   }catch(e){
-    
-    
+    console.error('❌ Erro ao processar faturas:',e.message);
+    console.error(e);
   }
 }
 
@@ -2583,10 +2661,10 @@ async function gerarCategoriaComIA(fatura){
       categoria='Assinaturas';
     }
 
-    
+    console.log('🤖 Categoria gerada:',banco,'→',categoria);
     return categoria;
   }catch(e){
-    
+    console.warn('⚠️ Erro ao gerar categoria:', e.message);
     return 'Outros';
   }
 }
@@ -2890,13 +2968,13 @@ function renderGraficoConsumoMensal(){
   const graficoEl=document.getElementById('grafico-consumo-mensal');
   if(!graficoEl)return;
 
-  
-  
-  
+  console.log('🔍 DEBUG renderGraficoConsumoMensal:');
+  console.log('   D._faturasRaw:',D._faturasRaw?.length||0,'itens');
+  console.log('   D._faturas:',Object.keys(D._faturas||{}).length,'meses');
 
   const faturas=D._faturasRaw||[];
   if(faturas.length===0){
-    
+    console.warn('⚠️ Sem dados de faturas para gráfico');
     graficoEl.innerHTML='<div style="color:var(--t3);padding:2rem;text-align:center"><div>❌ Sem dados de faturas</div><div style="font-size:11px;margin-top:.5rem">Verifique os dados no Supabase</div></div>';
     return;
   }
@@ -2904,17 +2982,17 @@ function renderGraficoConsumoMensal(){
   // Agrupar por mês e calcular total
   const gastosPorMes={};
   faturas.forEach(f=>{
-    
+    console.log('🔍 Processando fatura:', {mes_ref: f.mes_ref, banco: f.banco, fatura_total: f.fatura_total});
     const mes=f.mes_ref;
     if(!mes){
-      
+      console.warn('⚠️ Fatura sem mes_ref:', f);
       return;
     }
     if(!gastosPorMes[mes])gastosPorMes[mes]=0;
     gastosPorMes[mes]+=(f.fatura_total||0);
   });
 
-  
+  console.log('📊 Gastos por mês:',gastosPorMes);
 
   // Ordenar meses
   const meses=Object.keys(gastosPorMes).sort();
@@ -3054,12 +3132,12 @@ function renderGraficoCategoriasmensal(){
   const graficoEl=document.getElementById('grafico-categorias-mensal');
   if(!graficoEl)return;
 
-  
-  
+  console.log('🔍 DEBUG renderGraficoCategoriasmensal:');
+  console.log('   D._faturasRaw:',D._faturasRaw?.length||0,'itens');
 
   const faturas=D._faturasRaw||[];
   if(faturas.length===0){
-    
+    console.warn('⚠️ Sem dados para gráfico de categorias');
     graficoEl.innerHTML='<div style="color:var(--t3);padding:2rem;text-align:center"><div>❌ Sem dados de categorias</div><div style="font-size:11px;margin-top:.5rem">Verifique se as faturas têm categoria preenchida</div></div>';
     return;
   }
@@ -3070,7 +3148,7 @@ function renderGraficoCategoriasmensal(){
     const mes=f.mes_ref;
     const cat=f.categoria||'Sem categoria';
     if(!mes){
-      
+      console.warn('⚠️ Fatura sem mes_ref na categoria:', f);
       return;
     }
 
@@ -3148,7 +3226,7 @@ function renderGraficoCategoriasmensal(){
 
 function toggleCartaoFilter(btn){
   btn.classList.toggle('on');
-  
+  console.log('Filtro alterado');
 }
 
 function showCartaoDetalhes(cartaoOrEvent){
@@ -3166,7 +3244,7 @@ function showCartaoDetalhes(cartaoOrEvent){
   }
 
   if(!cartao){
-    
+    console.error('❌ Cartão não encontrado:', cartaoId);
     return;
   }
 
@@ -3321,7 +3399,7 @@ function showEditCartaoModal(cartaoIdOrObj){
 
 async function salvarEdicaoCartao(cartaoId,novoLimite,novaDataFech,novaDataVenc){
   try{
-    
+    console.log('💾 Salvando edição do cartão...');
 
     // Validar inputs
     if(!novoLimite||isNaN(parseFloat(novoLimite))){
@@ -3365,7 +3443,7 @@ async function salvarEdicaoCartao(cartaoId,novoLimite,novaDataFech,novaDataVenc)
     // Salvar no Supabase
     const sb=getSB();
     if(sb&&faturaMaisRecente){
-      
+      console.log('📡 Atualizando fatura no Supabase...');
       const{error}=await sb
         .from('nosso_lar_faturas')
         .update({
@@ -3376,7 +3454,7 @@ async function salvarEdicaoCartao(cartaoId,novoLimite,novaDataFech,novaDataVenc)
         .eq('id',faturaMaisRecente.id);
 
       if(error){
-        
+        console.error('❌ Erro ao atualizar no Supabase:',error.message);
         alert('❌ Erro ao salvar no servidor');
         return;
       }
@@ -3386,10 +3464,10 @@ async function salvarEdicaoCartao(cartaoId,novoLimite,novaDataFech,novaDataVenc)
     saveData();
     await renderCartoesDesktopNovo();
 
-    
+    console.log('✅ Cartão atualizado com sucesso');
     return true;  // Indicar sucesso
   }catch(e){
-    
+    console.error('❌ Erro ao salvar edição:',e.message);
     alert('❌ '+e.message);
     return false;  // Indicar falha
   }
@@ -3465,7 +3543,7 @@ function renderCartoesDesktop(){
 function renderVisaoGeralDesktopNovo(){
   const container=document.getElementById('page-visao-geral');
   if(!container){
-    
+    console.warn('⚠️ Container visão geral não encontrado');
     return;
   }
 
@@ -4045,7 +4123,7 @@ async function init(){
 
       if(isMob()){
         // Mobile: renderizar visão geral por padrão
-        
+        console.log('📱 Mobile - renderizando Visão Geral');
         render();
         renderSide();
         renderSideGeral();
@@ -4053,7 +4131,7 @@ async function init(){
         if(headerEl)headerEl.textContent=MN[+mes.slice(5)-1];
       } else {
         // Desktop: renderizar abas
-        
+        console.log('🖥️ Desktop - renderizando abas');
         render();
         renderSide();
         renderSideGeral();
@@ -4063,7 +4141,7 @@ async function init(){
         const validPages=['lancamentos','cartoes','visao-geral'];
         const pageToLoad=validPages.includes(hash)?hash:'lancamentos';
 
-        
+        console.log('📄 Carregando página:', pageToLoad);
         await switchPage(pageToLoad);
 
         // Listener para mudanças de hash
@@ -4080,7 +4158,7 @@ async function init(){
         }
       }
     }
-    catch(e){}
+    catch(e){console.warn('DB:',e?.message||e);}
   }
 }
 init();
