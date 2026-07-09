@@ -2977,6 +2977,7 @@ function _metaCard(key,nome,emoji){
         <button onclick="_editMetaDivida('${key}','${nome}')" style="${b}">Editar</button>
         <button onclick="registrarAporte('${key}','${nome}')" style="${b};background:var(--gl);color:var(--g);border-color:transparent">+ Aporte</button>
         <button onclick="verHistorico('${key}','${nome}')" style="${b}">Histórico</button>
+        ${d._meta?`<button onclick="removeMeta('${key}')" style="${b};color:var(--r)">✕</button>`:''}
       </div>
     </div>
     <div style="font-size:12px;color:var(--t3)">Já pago</div>
@@ -2990,6 +2991,22 @@ function _metaCard(key,nome,emoji){
     </div>
   </div>`;
 }
+function novaMeta(){
+  _formModal('Nova meta de viagem',[
+    {label:'Nome',key:'nome',type:'text',value:'',ph:'ex: Viagem Disney'},
+    {label:'Emoji',key:'emoji',type:'text',value:'✈️'},
+    {label:'Valor alvo (R$)',key:'valor_total',type:'number',value:0},
+    {label:'Prazo (meses)',key:'meses',type:'number',value:48}
+  ],vals=>{
+    if(!vals.valor_total||vals.valor_total<=0){toast('Informe o valor alvo');return;}
+    const meses=Math.max(1,Math.round(vals.meses||1));
+    if(!D._dividas||Array.isArray(D._dividas))D._dividas={};
+    const key='meta_'+Date.now();
+    D._dividas[key]={id:key,_meta:true,nome:vals.nome||'Meta',emoji:vals.emoji||'🎯',cor:'#0e7a58',valor_total:+vals.valor_total,total_parcelas:meses,parcelas_pagas:0,parcela_mensal:Math.round(vals.valor_total/meses*100)/100,inicio:mes,pagamentos:[]};
+    saveData();renderPatrimonioPage();toast('Meta criada ✓');
+  });
+}
+function removeMeta(key){ if(!confirm('Remover esta meta?'))return; if(D._dividas)delete D._dividas[key]; saveData();renderPatrimonioPage();toast('Meta removida'); }
 function registrarAporte(key,nome){
   _formModal('Registrar aporte — '+nome,[
     {label:'Valor (R$)',key:'valor',type:'number',value:0},
@@ -3122,10 +3139,15 @@ function renderPatrimonioPage(){
   evoP.innerHTML='<div class="nl-ch">Evolução do patrimônio <span class="sub">mês a mês</span></div><div id="patr-evo"></div>';
   wrap.appendChild(evoP);
 
-  // METAS: Spin + Imóvel (com aportes e histórico)
+  // METAS: Spin + Imóvel + metas de viagem (com aportes e histórico)
+  const metasHdr=document.createElement('div');
+  metasHdr.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-top:.25rem';
+  metasHdr.innerHTML='<div class="nl-ch" style="margin:0">Metas</div><button onclick="novaMeta()" style="border:none;background:var(--g);color:#fff;padding:.4rem .75rem;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">+ Nova meta</button>';
+  wrap.appendChild(metasHdr);
   const topSection=document.createElement('div');
   topSection.className='nl-grid2';
-  topSection.innerHTML=_metaCard('spin','Spin','🏡')+_metaCard('imovel','Imóvel','🏠');
+  topSection.innerHTML=_metaCard('spin','Spin','🏡')+_metaCard('imovel','Imóvel','🏠')
+    +_metasViagem().map(k=>_metaCard(k,(D._dividas[k].nome||'Meta'),(D._dividas[k].emoji||'🎯'))).join('');
   wrap.appendChild(topSection);
 
   // Resumo de dívidas + Alocação de investimentos (lado a lado)
@@ -3390,7 +3412,8 @@ function renderPrevisaoFluxo(){
     +meses.map(x=>`<div style="flex:1;text-align:center;font-size:9px;font-weight:600;color:var(--t3);min-width:0">${x.label}<br><span style="color:${x.saldo>=0?'var(--g)':'var(--r)'}">${fv(x.saldo)}</span></div>`).join('')
     +'</div>';
 }
-function _dividasArr(){ const d=D._dividas; if(!d)return[]; return Array.isArray(d)?d:Object.keys(d).map(k=>Object.assign({_key:k},d[k])); }
+function _dividasArr(){ const d=D._dividas; if(!d)return[]; return (Array.isArray(d)?d:Object.keys(d).map(k=>Object.assign({_key:k},d[k]))).filter(x=>!x._meta); } /* metas de viagem (_meta) não são dívidas */
+function _metasViagem(){ const d=D._dividas||{}; return Object.keys(d).filter(k=>d[k]&&d[k]._meta); }
 function _divParcela(d){ return (d.parcela_mensal!=null?d.parcela_mensal:d.parcelaValor)||0; }
 function _divPagas(d){ return (d.parcelas_pagas!=null?d.parcelas_pagas:d.parcelasPagas)||0; }
 function _divTotal(d){ return (d.total_parcelas!=null?d.total_parcelas:d.parcelasTotal)||0; }
