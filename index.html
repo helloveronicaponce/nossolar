@@ -667,8 +667,22 @@ function saveToLocalStorage(){try{localStorage.setItem('nosso-lar-backup',JSON.s
 /* ===== PREVIEW-TEMP: carrega dados via REST pública (sem login) — REVERTER antes de publicar ===== */
 async function loadPreview(){try{const r=await fetch('./_preview_data.json?t='+Date.now());const d=await r.json();if(d){Object.keys(d).forEach(k=>{D[k]=d[k];});saveToLocalStorage();}syncStatus('👁 pré-visualização (dados locais)','#fbbf24');setTimeout(()=>syncStatus(''),4000);}catch(e){console.warn('preview:',e.message);}}
 
+// Auto-cura: remove pagamentos de fatura pendentes criados por engano (bug antigo) em meses passados.
+// Assinatura do bug: id cc_, status != pago, SEM _faturaId, obs com "fech. dia" (abreviação da versão bugada).
+// As faturas legítimas usam "fechamento dia" completo + _faturaId, então nunca são atingidas.
+function _limpaFaturasRetro(){
+  const hoje=new Date();const mesHoje=hoje.getFullYear()+'-'+String(hoje.getMonth()+1).padStart(2,'0');
+  let n=0;
+  Object.keys(D).forEach(k=>{
+    if(!/^\d{4}-\d{2}$/.test(k)||!Array.isArray(D[k])||k>=mesHoje)return;
+    const before=D[k].length;
+    D[k]=D[k].filter(r=>!(String(r.id||'').startsWith('cc_')&&r.status!=='pago'&&!r._faturaId&&(r.obs||'').indexOf('fech. dia')>=0));
+    n+=before-D[k].length;
+  });
+  return n;
+}
 let _st=null;
-function saveData(){clearTimeout(_st);syncStatus('💾 salvando…','rgba(255,255,255,.7)');_st=setTimeout(async()=>{try{const h=await getAuthHeader();console.log('💾 Salvando dados:', Object.keys(D).length,'chaves');const r=await fetch(EDGE_URL,{method:'POST',headers:{...h,'Content-Type':'application/json'},body:JSON.stringify(D)});console.log('📤 POST resposta:', r.status);if(!r.ok)throw new Error('HTTP '+r.status);const resp=await r.json();console.log('✅ Edge Function respondeu');saveToLocalStorage();syncStatus('✅ salvo','#fff');setTimeout(()=>syncStatus(''),3000);}catch(e){console.error('❌ Erro ao salvar em Supabase:',e.message);saveToLocalStorage();syncStatus('⚠ salvo localmente','#fbbf24');}},2000);}
+function saveData(){clearTimeout(_st);syncStatus('💾 salvando…','rgba(255,255,255,.7)');_st=setTimeout(async()=>{try{_limpaFaturasRetro();const h=await getAuthHeader();console.log('💾 Salvando dados:', Object.keys(D).length,'chaves');const r=await fetch(EDGE_URL,{method:'POST',headers:{...h,'Content-Type':'application/json'},body:JSON.stringify(D)});console.log('📤 POST resposta:', r.status);if(!r.ok)throw new Error('HTTP '+r.status);const resp=await r.json();console.log('✅ Edge Function respondeu');saveToLocalStorage();syncStatus('✅ salvo','#fff');setTimeout(()=>syncStatus(''),3000);}catch(e){console.error('❌ Erro ao salvar em Supabase:',e.message);saveToLocalStorage();syncStatus('⚠ salvo localmente','#fbbf24');}},2000);}
 
 function initializeDefaultData(){console.log('❌ ERRO CRÍTICO: Nenhum dado disponível');console.error('Edge Function não retornou dados reais para o usuário');syncStatus('❌ sem dados - Edge Function vazia','#dc2626');}
 
@@ -3529,6 +3543,8 @@ async function init(){
   if(document.getElementById('app-root').style.display!=='none'){
     try{
       await loadFromDB();
+      const _nrm=_limpaFaturasRetro();
+      if(_nrm>0){console.log('🧹 Removidos '+_nrm+' pagamentos de fatura criados por engano em meses passados');saveData();}
 
       if(isMob()){
         // Mobile: renderizar visão geral por padrão
