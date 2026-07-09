@@ -600,7 +600,8 @@ const CARTOES_DEFAULT=[
 ];
 function getCartoes(){if(!D['_cartoes']||!D['_cartoes'].length)D['_cartoes']=JSON.parse(JSON.stringify(CARTOES_DEFAULT));return D['_cartoes'];}
 function _cardNome(cid){const c=(D._cartoes||[]).find(x=>x.id===cid);return c?c.nome:cid;}
-function getFatura(cid){const k=_cardNome(cid);const m=D['_faturas']&&D['_faturas'][mes];return (m&&(m[k]!=null?m[k]:m[cid]))||0;}
+function _faturaMesUsado(cid){const k=_cardNome(cid);const fa=D['_faturas']||{};if(fa[mes]&&((fa[mes][k]||0)>0||(fa[mes][cid]||0)>0))return mes;const ms=Object.keys(fa).filter(m=>/^\d{4}-\d{2}$/.test(m)&&m<=mes&&fa[m]&&((fa[m][k]||0)>0||(fa[m][cid]||0)>0)).sort();return ms.length?ms[ms.length-1]:mes;}
+function getFatura(cid){const k=_cardNome(cid);const mm=_faturaMesUsado(cid);const m=D['_faturas']&&D['_faturas'][mm];return (m&&(m[k]!=null?m[k]:m[cid]))||0;}
 function setFatura(cid,valor){if(!D['_faturas'])D['_faturas']={};if(!D['_faturas'][mes])D['_faturas'][mes]={};D['_faturas'][mes][cid]=valor;}
 function getRecs(){if(!D['_recorrentes'])D['_recorrentes']=[];return D['_recorrentes'];}
 
@@ -2425,6 +2426,8 @@ function renderCartoesDesktopNovo(){
   cardsSection.className='cartoes-grid';
   cartoes.forEach(cartao=>{
     const fatura=getFatura(cartao.id);
+    const _fm=_faturaMesUsado(cartao.id);
+    const _fmLbl=(_fm===mes)?'fatura atual':('fatura de '+['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][+_fm.slice(5)-1]+'/'+_fm.slice(2,4));
     const limite=getLimite(cartao.id);
     const percentual=limite>0?(fatura/limite*100):0;
     const corBg=cartao.cor||'var(--g)';
@@ -2436,7 +2439,7 @@ function renderCartoesDesktopNovo(){
     cardEl.innerHTML=
       '<div style="display:flex;align-items:center;gap:11px;margin-bottom:13px">'
       +'<div style="width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:15px;flex-shrink:0;background:'+corBg+'">'+(cartao.emoji||(cartao.nome||'C').slice(0,1))+'</div>'
-      +'<div style="min-width:0"><div style="font-size:14px;font-weight:700;color:var(--t);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(cartao.nome||'Cartão')+'</div><div style="font-size:11.5px;color:var(--t3);font-weight:500">fatura atual</div></div>'
+      +'<div style="min-width:0"><div style="font-size:14px;font-weight:700;color:var(--t);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(cartao.nome||'Cartão')+'</div><div style="font-size:11.5px;color:var(--t3);font-weight:500">'+_fmLbl+'</div></div>'
       +'</div>'
       +'<div class="tnum" style="font-size:23px;font-weight:800;letter-spacing:-.02em;color:var(--t)">'+fv(fatura)+'</div>'
       +'<div class="nl-util" style="margin-top:13px"><div class="track"><span class="fill" style="width:'+Math.min(100,percentual)+'%;background:'+uc+'"></span></div>'
@@ -2512,13 +2515,13 @@ function _cartaoResumoHtml(c){
   </div>${lim>0?`<div style="height:5px;background:var(--w);border-radius:99px;overflow:hidden;margin-top:.75rem"><div style="height:100%;width:${Math.min(100,pct)}%;background:${pct>85?'var(--r)':pct>60?'var(--a)':'var(--g)'};border-radius:99px"></div></div>`:''}`;
 }
 function _faturaHistoricoHtml(cid){
-  const fa=D._faturas||{};
+  const fa=D._faturas||{}; const k=_cardNome(cid);
   const MNs=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-  const rows=Object.keys(fa).filter(m=>/^\d{4}-\d{2}$/.test(m)&&fa[m]&&fa[m][cid]>0).sort().reverse().slice(0,12);
+  const rows=Object.keys(fa).filter(m=>/^\d{4}-\d{2}$/.test(m)&&fa[m]&&fa[m][k]>0).sort().reverse().slice(0,12);
   if(!rows.length)return '<p style="color:var(--t3);text-align:center;padding:1rem 0">Nenhuma fatura registrada ainda para este cartão.</p>';
   return `<div style="display:flex;flex-direction:column;gap:.2rem">${rows.map(m=>{
     const lbl=MNs[parseInt(m.slice(5),10)-1]+'/'+m.slice(0,4);
-    return `<div style="display:flex;justify-content:space-between;font-size:13px;padding:.4rem 0;border-bottom:1px solid var(--b)"><span style="color:var(--t2);text-transform:capitalize">${lbl}</span><span style="font-weight:700;color:var(--t)">${fv(fa[m][cid])}</span></div>`;
+    return `<div style="display:flex;justify-content:space-between;font-size:13px;padding:.4rem 0;border-bottom:1px solid var(--b)"><span style="color:var(--t2);text-transform:capitalize">${lbl}</span><span style="font-weight:700;color:var(--t)">${fv(fa[m][k])}</span></div>`;
   }).join('')}</div>`;
 }
 function renderCartaoGrafico(){
