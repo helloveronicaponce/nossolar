@@ -628,6 +628,8 @@ function faturaStatus(cid){
 // cria/atualiza automaticamente os lançamentos de pagamento a partir das faturas importadas do mês
 // (não sobrescreve status nem faturas já pagas — só materializa o vínculo e mantém o valor em dia)
 function syncTodosCartoes(){
+  const hoje=new Date();const mesHoje=hoje.getFullYear()+'-'+String(hoje.getMonth()+1).padStart(2,'0');
+  if(mes<mesHoje)return false; // NUNCA cria/altera pagamento retroativo em meses passados (não inventa dívida no histórico)
   let changed=false;const cs=getCartoes();
   cs.forEach(c=>{
     const raw=_faturaRaw(c.id,mes);
