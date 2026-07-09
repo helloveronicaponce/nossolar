@@ -713,6 +713,7 @@ function rows(){
     if(!Array.isArray(arr)||m===mes)return;
     arr.filter(r=>r.recorrente&&!r._recClone&&!r._deletado).forEach(r=>{
       if(r._ate&&mes>r._ate)return; // recorrência encerrada
+      const _startM=(r.venc||'').slice(0,7); if(_startM&&mes<_startM)return; // não injeta antes do início da recorrência
       const cloneId='rec_'+r.id+'_'+mes;
       if(deletadosIds.has(cloneId)||mesIds.has(cloneId)||result.find(x=>x.id===cloneId))return;
       const dia=(r.venc||'').slice(8,10)||'01';
@@ -752,6 +753,7 @@ function rowsOf(m){
     if(!Array.isArray(arr)||mk===m)return;
     arr.filter(r=>r.recorrente&&!r._recClone&&!r._deletado).forEach(r=>{
       if(r._ate&&m>r._ate)return; // recorrência encerrada
+      const _startM=(r.venc||'').slice(0,7); if(_startM&&m<_startM)return; // não injeta antes do início da recorrência
       const cloneId='rec_'+r.id+'_'+m;
       if(deletadosIds.has(cloneId)||mesIds.has(cloneId)||result.find(x=>x.id===cloneId))return;
       const dia=(r.venc||'').slice(8,10)||'01';
