@@ -177,6 +177,8 @@ input.row-cb{width:15px;height:15px;accent-color:var(--g);cursor:pointer;opacity
 /* ── BULK BAR ── */
 .bulk-bar{display:none;position:sticky;top:calc(56px + env(safe-area-inset-top,0px));z-index:40;background:#1e40af;color:#fff;padding:.6rem 1rem;border-radius:10px;margin:.5rem .5rem 0;align-items:center;gap:.75rem;font-size:13px;font-weight:600;box-shadow:0 4px 12px rgba(30,64,175,.3)}
 .bulk-bar.on{display:flex}
+.bulk-b{border:none;color:#fff;background:rgba(255,255,255,.2);padding:.32rem .62rem;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:Inter,sans-serif;white-space:nowrap}
+.bulk-b:hover{background:rgba(255,255,255,.32)}
 .bulk-btn{padding:.35rem .85rem;border-radius:7px;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:Inter,sans-serif}
 
 /* ── SIDEBAR WIDGETS ── */
@@ -1984,7 +1986,7 @@ function toggleAllCB(checked){selIds.clear();document.querySelectorAll('.row-cb'
 function updateBulkBar(){const bar=document.getElementById('bulk-bar');const cnt=document.getElementById('bulk-count');if(!bar)return;if(selIds.size>0){bar.classList.add('on');if(cnt)cnt.textContent=selIds.size+' selecionado'+(selIds.size>1?'s':'');}else{bar.classList.remove('on');const cbAll=document.getElementById('cb-all');if(cbAll)cbAll.checked=false;}}
 function clearSel(){selIds.clear();document.querySelectorAll('.row-cb').forEach(cb=>{cb.checked=false;cb.closest('.tr')?.classList.remove('sel');});updateBulkBar();}
 function bulkDelete(){if(!selIds.size)return;if(!confirm('Remover '+selIds.size+' lançamento(s)?'))return;selIds.forEach(id=>{D[mes]=(D[mes]||[]).filter(x=>x.id!==id);});selIds.clear();saveData();render();renderSide();}
-function bulkStatus(status){if(!selIds.size)return;const cnt=selIds.size;selIds.forEach(id=>{const idx=(D[mes]||[]).findIndex(x=>x.id===id);if(idx>=0){D[mes][idx].status=status;if(status==='pago')D[mes][idx].pag=today();}});selIds.clear();saveData();render();renderSide();toast('✅ '+cnt+' itens atualizados');}
+function bulkStatus(status){if(!selIds.size)return;const cnt=selIds.size;if(!D[mes])D[mes]=[];const virt=rows();selIds.forEach(id=>{const idx=D[mes].findIndex(x=>x.id===id);const pag=status==='pago'?today():null;if(idx>=0){D[mes][idx].status=status;D[mes][idx].pag=pag;}else{const r=virt.find(x=>x.id===id);if(r)D[mes].push({...r,status,pag});}});selIds.clear();saveData();render();renderSide();toast('✅ '+cnt+' itens marcados como '+(SL[status]||status));}
 
 /* ── EDIT SALDO ── */
 function editSaldo(e){
@@ -2326,9 +2328,21 @@ function renderLancamentosDesktop(){
     <button class="btn" onclick="doCSV()" style="padding:.45rem .9rem">Exportar</button>
   </div>`;
 
-  tableCard.innerHTML+=`<div style="padding:0">
+  tableCard.innerHTML+=`<div id="bulk-bar" class="bulk-bar">
+    <span id="bulk-count">0 selecionados</span>
+    <div style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin-left:auto">
+      <span style="opacity:.85;font-weight:500;font-size:11.5px">marcar como:</span>
+      <button onclick="bulkStatus('pago')" class="bulk-b" style="background:#22c55e">✓ Pago</button>
+      <button onclick="bulkStatus('pendente')" class="bulk-b">● Pendente</button>
+      <button onclick="bulkStatus('agendado')" class="bulk-b">🗓 Agendado</button>
+      <button onclick="bulkStatus('atrasado')" class="bulk-b">⏰ Atrasado</button>
+      <button onclick="bulkDelete()" class="bulk-b" style="background:rgba(255,255,255,.14)">🗑 Excluir</button>
+      <button onclick="clearSel()" class="bulk-b" style="background:transparent;text-decoration:underline">Limpar</button>
+    </div>
+  </div>
+  <div style="padding:0">
     <div class="th">
-      <span></span><span>Data</span><span>Status</span><span>Descrição</span>
+      <span><input type="checkbox" id="cb-all" onchange="toggleAllCB(this.checked)" title="Selecionar todos" style="accent-color:var(--g);width:14px;height:14px;cursor:pointer"></span><span>Data</span><span>Status</span><span>Descrição</span>
       <span style="text-align:center">Tipo</span><span style="text-align:right">Valor</span><span style="text-align:right">Saldo</span><span></span>
     </div>
     <div id="tb" style="padding:0"></div>
