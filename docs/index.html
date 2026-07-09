@@ -987,6 +987,7 @@ function render(){
     const sign=r.tipo==='in'?'+ ':'– ';
     const p=r.parcelas||1,pa=r.parcelaAtual||1;
     const isRec=!!(r.recorrente||r._recClone);
+    const fatIcon=String(r.id||'').startsWith('cc_')?'💳 ':'';
     const badge=isCor?'<span class="pb pb-c">≈ correção</span>':isRec?'<span class="pb" style="background:var(--bg);color:var(--t2);font-size:9.5px">🔄 rec</span>':p>1?'<span class="pb pb-p">'+pa+'/'+p+'</span>':'<span class="pb pb-u">único</span>';
     const pv=proj[r.id];
     const pvHtml=pv!==undefined&&!isPago?'<span class="pj '+(pv>0?'pos':pv<0?'neg':'zer')+'">'+fv(pv)+'</span>':'<span class="pj" style="color:var(--t3)">—</span>';
@@ -996,7 +997,7 @@ function render(){
       const obsText=r.obs?'<span class="dobs">'+r.obs+'</span>':'';
       return '<div class="'+rc+'" data-id="'+r.id+'" style="display:grid;grid-template-columns:52px 1fr auto auto;gap:0;padding:.55rem .65rem;align-items:center;border-radius:10px;margin-bottom:1px;border:1px solid transparent">'
         +'<div style="padding-right:6px;flex-shrink:0"><span class="'+dc+'" data-id="'+r.id+'" style="font-size:11px;font-weight:700;display:block;line-height:1.3;color:var(--t2)">'+fd(dispDate)+'</span></div>'
-        +'<div style="min-width:0;padding-right:6px"><span class="dn" data-id="'+r.id+'" style="font-size:13px;font-weight:600;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+r.desc+'</span>'
+        +'<div style="min-width:0;padding-right:6px"><span class="dn" data-id="'+r.id+'" style="font-size:13px;font-weight:600;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+fatIcon+r.desc+'</span>'
         +'<div style="display:flex;gap:3px;margin-top:2px;align-items:center;flex-wrap:wrap">'+badge+obsText+'</div></div>'
         +'<div style="padding-right:6px;text-align:right"><span class="vd '+r.tipo+'" data-id="'+r.id+'" style="font-size:12.5px;font-weight:700;white-space:nowrap">'+sign+fv(r.valor)+'</span></div>'
         +'<div><span class="chip '+r.status+'" data-id="'+r.id+'" style="font-size:9.5px;padding:2px 7px">'+SL[r.status]+'</span></div>'
@@ -1007,7 +1008,7 @@ function render(){
       +'<div class="cb-col"><input type="checkbox" class="row-cb" data-id="'+r.id+'" onchange="onCBChange(this)"></div>'
       +'<div><span class="'+dc+'" data-id="'+r.id+'">'+fd(dispDate)+'</span></div>'
       +'<div class="scw" style="justify-content:flex-start"><span class="chip '+r.status+'" data-id="'+r.id+'">'+SL[r.status]+'</span></div>'
-      +'<div class="dc"><span class="dn" data-id="'+r.id+'">'+r.desc+'</span></div>'
+      +'<div class="dc"><span class="dn" data-id="'+r.id+'">'+fatIcon+r.desc+'</span></div>'
       +'<div style="text-align:center;font-size:11px">'+badge+'</div>'
       +'<div style="text-align:right"><span class="vd '+r.tipo+'" data-id="'+r.id+'">'+sign+fv(r.valor)+'</span></div>'
       +'<div style="text-align:right">'+pvHtml+'</div>'
@@ -2487,6 +2488,9 @@ function renderCartoesDesktopNovo(){
 
     <div class="nl-ch" style="margin:1.5rem 0 1rem">Distribuição por cartão</div>
     <div id="cartao-pizza"></div>
+
+    <div class="nl-ch" style="margin:1.75rem 0 1rem">Gastos por categoria <span class="sub">itens das faturas importadas</span></div>
+    <div id="gastos-categoria"></div>
   `;
   // (gráfico de gastos é anexado abaixo dos cartões — ver mais adiante)
 
@@ -2531,7 +2535,30 @@ function renderCartoesDesktopNovo(){
 
   renderCartaoGrafico();
   renderCartaoPizza();
+  renderGastosCategoria();
   renderEvolucaoFatura();
+}
+/* ── Gastos por categoria (itens importados das faturas) ── */
+function renderGastosCategoria(){
+  const el=document.getElementById('gastos-categoria');if(!el)return;
+  const fi=D._faturaItens||{};
+  const mesesComItens=[...new Set(Object.keys(fi).filter(k=>Array.isArray(fi[k])&&fi[k].length).map(k=>k.slice(-7)).filter(m=>/^\d{4}-\d{2}$/.test(m)))].sort();
+  if(!mesesComItens.length){el.innerHTML='<div style="color:var(--t3);text-align:center;padding:1.5rem;font-size:13px">Nenhum item de fatura importado ainda.<br><span style="font-size:11.5px">Importe faturas em PDF para ver os gastos por categoria (mercado, assinaturas, comida…).</span></div>';return;}
+  let usm=mes;
+  if(!mesesComItens.includes(mes)){const ant=mesesComItens.filter(m=>m<=mes);usm=ant.length?ant[ant.length-1]:mesesComItens[mesesComItens.length-1];}
+  const cats={};
+  Object.keys(fi).forEach(k=>{if(k.slice(-7)===usm)(fi[k]||[]).forEach(it=>{const c=it.cat||'Outros';cats[c]=(cats[c]||0)+(it.valor||0);});});
+  const arr=Object.entries(cats).sort((a,b)=>b[1]-a[1]);
+  const tot=arr.reduce((s,e)=>s+e[1],0);
+  if(!tot){el.innerHTML='<div style="color:var(--t3);text-align:center;padding:1.5rem;font-size:13px">Sem itens categorizados neste período.</div>';return;}
+  const MNa=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const EMO={'Mercado':'🛒','Supermercado':'🛒','Assinaturas':'📺','Comida':'🍔','Alimentação':'🍔','Restaurante':'🍔','Combustível':'⛽','Transporte':'🚗','Saúde':'💊','Farmácia':'💊','Compras':'🛍️','Varejo':'🛍️','Vestuário':'👕','Educação':'📚','Lazer':'🎬','Casa':'🏠','Serviços':'🔧','Outros':'📦'};
+  const max=arr[0][1];
+  const aviso=usm!==mes?'<div style="font-size:11.5px;color:var(--a);background:color-mix(in srgb,var(--a) 10%,transparent);padding:.5rem .7rem;border-radius:8px;margin-bottom:.9rem">📅 Sem itens importados em '+MN[+mes.slice(5)-1]+'. Mostrando <b>'+MNa[+usm.slice(5)-1]+'/'+usm.slice(2,4)+'</b> (últimos dados disponíveis).</div>':'';
+  el.innerHTML=aviso+arr.map(([c,v])=>{
+    const pct=Math.round(v/tot*100),w=Math.max(3,Math.round(v/max*100));
+    return '<div style="margin-bottom:.72rem"><div style="display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;margin-bottom:5px"><span style="color:var(--t2);font-weight:600">'+(EMO[c]||'📦')+' '+c+'</span><span style="color:var(--t);font-weight:700">'+fv(v)+' <span style="color:var(--t3);font-weight:500;font-size:11px">'+pct+'%</span></span></div><div style="height:9px;background:var(--bg);border-radius:6px;overflow:hidden"><div style="height:100%;width:'+w+'%;background:var(--g);border-radius:6px"></div></div></div>';
+  }).join('')+'<div style="text-align:right;font-size:12px;color:var(--t3);margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--b)">Total categorizado: <b style="color:var(--t)">'+fv(tot)+'</b></div>';
 }
 
 function toggleCartaoFilter(btn){
