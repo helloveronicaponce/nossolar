@@ -226,8 +226,8 @@ input.row-cb{width:15px;height:15px;accent-color:var(--g);cursor:pointer;opacity
 
 /* ── TOOLTIPS ── */
 [data-tooltip]{position:relative;cursor:help}
-[data-tooltip]:hover::after{content:attr(data-tooltip);position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:var(--t);color:var(--bg);padding:.5rem .75rem;border-radius:6px;font-size:12px;font-weight:500;white-space:nowrap;z-index:1000;box-shadow:0 4px 12px var(--overlay);animation:slideUp .2s ease}
-[data-tooltip]:hover::before{content:'';position:absolute;bottom:calc(100% + 2px);left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:var(--t);z-index:1000}
+[data-tooltip]:not(.desktop-tab):hover::after{content:attr(data-tooltip);position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:var(--t);color:var(--bg);padding:.5rem .75rem;border-radius:6px;font-size:12px;font-weight:500;white-space:nowrap;z-index:1000;box-shadow:0 4px 12px var(--overlay);animation:slideUp .2s ease}
+[data-tooltip]:not(.desktop-tab):hover::before{content:'';position:absolute;bottom:calc(100% + 2px);left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:var(--t);z-index:1000}
 
 /* ── LOADING & SKELETON ── */
 .skeleton{background:linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%);background-size:200% 100%;animation:shimmer 2s infinite;border-radius:8px}
@@ -669,14 +669,18 @@ function rows(){
 function getSaldoFinal(m,depth){
   if((depth||0)>24)return 0; // proteção contra recursão infinita
   const meta=D[m+'_meta']||{};
-  // Se o usuário ajustou manualmente o saldo atual deste mês, esse é o saldo final
-  if(meta.saldoAtualManual!==undefined)return meta.saldoAtualManual;
-  // Caso contrário: saldo inicial do mês + movimentações
-  const si=getSI(m,(depth||0)+1);
   const pr=rowsOf(m);
-  // Sempre considera todos os lançamentos (pago ou não) — fluxo de caixa completo
-  return si+pr.filter(r=>r.tipo==='in').reduce((s,r)=>s+r.valor,0)
-            -pr.filter(r=>r.tipo==='out').reduce((s,r)=>s+r.valor,0);
+  const totIn=pr.filter(r=>r.tipo==='in').reduce((s,r)=>s+r.valor,0);
+  const totOut=pr.filter(r=>r.tipo==='out').reduce((s,r)=>s+r.valor,0);
+  // saldo FINAL = projeção do último dia do mês (sempre inclui os pendentes)
+  if(meta.saldoAtualManual!==undefined){
+    // saldo atual ajustado à mão + o que ainda falta acontecer no mês
+    const pgIn=pr.filter(r=>r.tipo==='in'&&r.status==='pago').reduce((s,r)=>s+r.valor,0);
+    const pgOut=pr.filter(r=>r.tipo==='out'&&r.status==='pago').reduce((s,r)=>s+r.valor,0);
+    return meta.saldoAtualManual + (totIn-pgIn) - (totOut-pgOut);
+  }
+  const si=getSI(m,(depth||0)+1);
+  return si + totIn - totOut;   // carry-forward: este final vira o inicial do mês seguinte
 }
 
 // Retorna todos os lançamentos de um mês (incluindo recorrentes injetados) sem alterar global
@@ -784,7 +788,7 @@ function toggleNavPicker(e){
     },50);
   }
 }
-function changeMes(m){mes=m;closeDd();_pickerOpen=false;const p=document.getElementById('nav-picker');if(p)p.style.display='none';buildSel();render();renderSide();}
+function changeMes(m){mes=m;closeDd();_pickerOpen=false;const p=document.getElementById('nav-picker');if(p)p.style.display='none';buildSel();render();renderSide();if(!isMob()){const _a=document.querySelector('.desktop-tab.active');if(_a)switchPage(_a.dataset.page);}}
 function setFilter(f,el){fil=f;closeDd();document.querySelectorAll('.pill').forEach(b=>b.classList.remove('on'));el.classList.add('on');render();}
 function toggleFiltro(ev){ if(ev)ev.stopPropagation(); const d=document.getElementById('filtro-dd'); if(!d)return; const willOpen=d.style.display!=='block'; d.style.display=willOpen?'block':'none'; if(willOpen){ setTimeout(()=>{ function h(e){ if(!d.contains(e.target)&&!(e.target.closest&&e.target.closest('#filtro-btn'))){ d.style.display='none'; document.removeEventListener('click',h);} } document.addEventListener('click',h); },0); } }
 function toggleStatus2(st,chk){ if(chk)filtSet.add(st); else filtSet.delete(st); render(); }
