@@ -600,9 +600,48 @@ const CARTOES_DEFAULT=[
 ];
 function getCartoes(){if(!D['_cartoes']||!D['_cartoes'].length)D['_cartoes']=JSON.parse(JSON.stringify(CARTOES_DEFAULT));return D['_cartoes'];}
 function _cardNome(cid){const c=(D._cartoes||[]).find(x=>x.id===cid);return c?c.nome:cid;}
-function _faturaMesUsado(cid){const k=_cardNome(cid);const fa=D['_faturas']||{};if(fa[mes]&&((fa[mes][k]||0)>0||(fa[mes][cid]||0)>0))return mes;const ms=Object.keys(fa).filter(m=>/^\d{4}-\d{2}$/.test(m)&&m<=mes&&fa[m]&&((fa[m][k]||0)>0||(fa[m][cid]||0)>0)).sort();return ms.length?ms[ms.length-1]:mes;}
-function getFatura(cid){const k=_cardNome(cid);const mm=_faturaMesUsado(cid);const m=D['_faturas']&&D['_faturas'][mm];return (m&&(m[k]!=null?m[k]:m[cid]))||0;}
+// fatura IMPORTADA/definida para o mês m (null se a chave não existe; pode ser 0)
+function _faturaRaw(cid,m){const fa=D['_faturas']||{};const o=fa[m];if(!o)return null;const k=_cardNome(cid);const v=(o[k]!=null?o[k]:o[cid]);return (v!=null)?v:null;}
+// lançamento de pagamento vinculado (cc_) do mês m
+function _ccLanc(cid,m){return (D[m]||[]).find(r=>r.id==='cc_'+cid+'_'+m);}
+// valor da fatura do MÊS SELECIONADO: prioriza a fatura importada; senão o valor do lançamento vinculado
+function getFatura(cid){const raw=_faturaRaw(cid,mes);if(raw!=null)return raw;const l=_ccLanc(cid,mes);return l?(l.valor||0):0;}
+function _faturaMesUsado(cid){return mes;} // compat: o cartão sempre reflete o mês selecionado
 function setFatura(cid,valor){if(!D['_faturas'])D['_faturas']={};if(!D['_faturas'][mes])D['_faturas'][mes]={};D['_faturas'][mes][_cardNome(cid)]=valor;}
+// status da fatura do mês (com base no lançamento vinculado + vencimento + contexto do mês)
+function faturaStatus(cid){
+  const fat=getFatura(cid),l=_ccLanc(cid,mes);
+  if(fat<=0&&!l)return{k:'nenhuma',lbl:'sem fatura lançada',cor:'var(--t3)'};
+  const st=l?l.status:'pendente';
+  if(st==='pago')return{k:'pago',lbl:'paga',cor:'var(--g)'};
+  if(st==='agendado')return{k:'agendado',lbl:'agendada',cor:'#3742FA'};
+  const c=getCartoes().find(x=>x.id===cid)||{};const venc=parseInt(c.vencimento)||0;
+  const hoje=new Date();const mesHoje=hoje.getFullYear()+'-'+String(hoje.getMonth()+1).padStart(2,'0');
+  if(mes<mesHoje)return{k:'vencida',lbl:'em aberto (mês passado)',cor:'var(--r)'};
+  if(mes>mesHoje)return{k:'futuro',lbl:'vence dia '+venc,cor:'var(--t3)'};
+  const dias=venc-hoje.getDate();
+  if(dias<0)return{k:'vencida',lbl:'venceu dia '+venc,cor:'var(--r)'};
+  if(dias===0)return{k:'hoje',lbl:'vence hoje',cor:'var(--r)'};
+  if(dias<=5)return{k:'proxima',lbl:'vence em '+dias+'d',cor:'var(--a)'};
+  return{k:'aberto',lbl:'vence dia '+venc,cor:'var(--t2)'};
+}
+// cria/atualiza automaticamente os lançamentos de pagamento a partir das faturas importadas do mês
+// (não sobrescreve status nem faturas já pagas — só materializa o vínculo e mantém o valor em dia)
+function syncTodosCartoes(){
+  let changed=false;const cs=getCartoes();
+  cs.forEach(c=>{
+    const raw=_faturaRaw(c.id,mes);
+    if(raw==null||raw<=0)return;
+    if(!D[mes])D[mes]=[];
+    const id='cc_'+c.id+'_'+mes;const ex=D[mes].find(r=>r.id===id);
+    if(!ex){
+      const[ano,mo]=mes.split('-');const dia=String(c.vencimento||1).padStart(2,'0');
+      D[mes].push({id,tipo:'out',venc:ano+'-'+mo+'-'+dia,pag:null,desc:'Pagamento de fatura - '+c.nome,cat:'Cartões',valor:raw,status:'pendente',obs:'Fatura '+c.nome+' — fech. dia '+c.fechamento,parcelas:1,parcelaAtual:1});
+      changed=true;
+    }else if(ex.status!=='pago'&&ex.valor!==raw){ex.valor=raw;changed=true;}
+  });
+  return changed;
+}
 function editFaturaModal(cid){const c=getCartoes().find(x=>x.id===cid);if(!c)return;_formModal('Valor da fatura — '+c.nome+' ('+mes+')',[{label:'Valor da fatura (R$)',key:'valor',type:'number',value:getFatura(cid)}],vals=>{setFatura(cid,+(+vals.valor||0).toFixed(2));syncCartaoLancamento(c);saveData();document.querySelectorAll('.cartao-modal').forEach(e=>e.remove());if(document.getElementById('page-cartoes'))renderCartoesDesktopNovo();render();toast('Fatura atualizada + lançamento vinculado ✓');});}
 function getRecs(){if(!D['_recorrentes'])D['_recorrentes']=[];return D['_recorrentes'];}
 
@@ -855,6 +894,7 @@ function render(){
   const headerEl=document.getElementById('lanc-header-mes');
   if(headerEl)headerEl.textContent=MN[+mes.slice(5)-1];
   closeDd();
+  if(syncTodosCartoes())saveData(); // gera automaticamente os lançamentos de pagamento de fatura
   const all=rows();let list=[...all];
   const srchEl=document.getElementById('srch')||document.getElementById('srch-m');
   const q=(srchEl?.value||'').toLowerCase();
@@ -2405,8 +2445,8 @@ function renderCartoesDesktopNovo(){
 
   // C1+C2+C3: alerta + hero + chips
   const diaHoje=new Date().getDate();
-  let _totFat=0,_totLim=0,_alerta=null,_prox=null;
-  cartoes.forEach(c=>{const fat=getFatura(c.id),lim=getLimite(c.id);_totFat+=fat;_totLim+=lim;const lanc=(D[mes]||[]).find(r=>r.id==='cc_'+c.id+'_'+mes);const pago=lanc&&lanc.status==='pago';const venc=parseInt(c.vencimento)||0;if(fat>0&&!pago&&venc>0){if(!_prox||venc<_prox.venc)_prox={c,venc,fat};const dias=venc-diaHoje;if(dias<0){if(!_alerta||dias<_alerta.dias)_alerta={c,fat,venc,dias,vencida:true};}else if(dias<=5){if(!_alerta||dias<_alerta.dias)_alerta={c,fat,venc,dias};}}});
+  let _totFat=0,_totLim=0,_totAberto=0,_totPago=0,_alerta=null,_prox=null;
+  cartoes.forEach(c=>{const fat=getFatura(c.id),lim=getLimite(c.id);_totFat+=fat;_totLim+=lim;const lanc=(D[mes]||[]).find(r=>r.id==='cc_'+c.id+'_'+mes);const pago=lanc&&lanc.status==='pago';if(pago)_totPago+=fat;else _totAberto+=fat;const venc=parseInt(c.vencimento)||0;if(fat>0&&!pago&&venc>0){if(!_prox||venc<_prox.venc)_prox={c,venc,fat};const dias=venc-diaHoje;if(dias<0){if(!_alerta||dias<_alerta.dias)_alerta={c,fat,venc,dias,vencida:true};}else if(dias<=5){if(!_alerta||dias<_alerta.dias)_alerta={c,fat,venc,dias};}}});
   const _disp=Math.max(0,_totLim-_totFat), _uso=_totLim>0?Math.round(_totFat/_totLim*100):0;
   const _prevTot=Object.values((D._faturas||{})[_mesAnterior(mes)]||{}).reduce((a,v)=>a+(typeof v==='number'?v:0),0);
   const _dTot=_prevTot?Math.round((_totFat-_prevTot)/Math.abs(_prevTot)*100):null;
@@ -2416,9 +2456,10 @@ function renderCartoesDesktopNovo(){
   topDiv.innerHTML=
     (_alerta?('<div class="nl-alert '+(_alerta.vencida?'bad':'')+'">⏰ Fatura do <b>'+_alerta.c.nome+'</b> '+(_alerta.vencida?'venceu dia '+_alerta.venc:(_alerta.dias===0?'vence hoje':'vence em '+_alerta.dias+' dia'+(_alerta.dias>1?'s':'')))+' · '+fv(_alerta.fat)+'</div>'):'')
     +'<div class="nl-hero"><div class="l">'
-    +'<div class="nl-eyebrow">Faturas em aberto</div>'
-    +'<div class="nl-big tnum">'+fv(_totFat)+'</div>'
-    +'<span class="nl-pill '+(_anyVenc?'warn':'ok')+'"><span class="dot"></span> '+cartoes.length+' cart'+(cartoes.length>1?'ões':'ão')+(_prox?' · próx. vence dia '+_prox.venc:'')+'</span>'
+    +'<div class="nl-eyebrow">Faturas em aberto · '+MN[+mes.slice(5)-1]+'/'+mes.slice(0,4)+'</div>'
+    +'<div class="nl-big tnum">'+fv(_totAberto)+'</div>'
+    +'<span class="nl-pill '+(_totAberto<=0?'ok':(_anyVenc?'warn':'ok'))+'"><span class="dot"></span> '+(_totAberto<=0?'tudo pago este mês ✓':(cartoes.length+' cart'+(cartoes.length>1?'ões':'ão')+(_prox?' · próx. vence dia '+_prox.venc:'')))+'</span>'
+    +(_totPago>0?'<div style="font-size:11.5px;color:var(--t3);margin-top:6px">'+fv(_totPago)+' já pago neste mês</div>':'')
     +'</div>'+(_faSerie.length>1?_nlSpark(_faSerie,190,60,'var(--a)'):'')+'</div>'
     +'<div class="nl-chips">'
     +'<div class="nl-chip"><div class="lbl">Limite disponível</div><div class="val tnum">'+fv(_disp)+'</div><div class="dl" style="color:var(--t3)">de '+fv(_totLim)+' · '+_uso+'% usado</div></div>'
@@ -2452,14 +2493,16 @@ function renderCartoesDesktopNovo(){
   // CARDS DOS CARTÕES (barra de utilização, cor funcional)
   const cardsSection=document.createElement('div');
   cardsSection.className='cartoes-grid';
+  const MNa=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
   cartoes.forEach(cartao=>{
     const fatura=getFatura(cartao.id);
-    const _fm=_faturaMesUsado(cartao.id);
-    const _fmLbl=(_fm===mes)?'fatura atual':('fatura de '+['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][+_fm.slice(5)-1]+'/'+_fm.slice(2,4));
+    const st=faturaStatus(cartao.id);
+    const _fmLbl='fatura de '+MNa[+mes.slice(5)-1]+'/'+mes.slice(2,4);
     const limite=getLimite(cartao.id);
     const percentual=limite>0?(fatura/limite*100):0;
     const corBg=cartao.cor||'var(--g)';
     const uc=percentual>=70?'var(--r)':percentual>=30?'var(--a)':'var(--g)';
+    const icon=st.k==='pago'?'✓':(st.k==='vencida'||st.k==='hoje')?'⏰':st.k==='agendado'?'🗓️':st.k==='nenhuma'?'':'●';
     const cardEl=document.createElement('div');
     cardEl.className='card';
     cardEl.style.cursor='pointer';
@@ -2467,12 +2510,13 @@ function renderCartoesDesktopNovo(){
     cardEl.innerHTML=
       '<div style="display:flex;align-items:center;gap:11px;margin-bottom:13px">'
       +'<div style="width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:15px;flex-shrink:0;background:'+corBg+'">'+(cartao.emoji||(cartao.nome||'C').slice(0,1))+'</div>'
-      +'<div style="min-width:0"><div style="font-size:14px;font-weight:700;color:var(--t);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(cartao.nome||'Cartão')+'</div><div style="font-size:11.5px;color:var(--t3);font-weight:500">'+_fmLbl+'</div></div>'
+      +'<div style="min-width:0;flex:1"><div style="font-size:14px;font-weight:700;color:var(--t);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(cartao.nome||'Cartão')+'</div><div style="font-size:11.5px;color:var(--t3);font-weight:500">'+_fmLbl+'</div></div>'
       +'</div>'
       +'<div class="tnum" style="font-size:23px;font-weight:800;letter-spacing:-.02em;color:var(--t)">'+fv(fatura)+'</div>'
+      +'<div style="margin-top:7px"><span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:'+st.cor+';background:color-mix(in srgb,'+st.cor+' 13%, transparent);padding:3px 9px;border-radius:20px">'+(icon?icon+' ':'')+st.lbl+'</span></div>'
       +'<div class="nl-util" style="margin-top:13px"><div class="track"><span class="fill" style="width:'+Math.min(100,percentual)+'%;background:'+uc+'"></span></div>'
       +'<div class="info"><span>'+(limite>0?percentual.toFixed(0)+'% do limite':'sem limite')+'</span><span>'+(limite>0?fv(limite):'')+'</span></div></div>'
-      +'<div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--t3);font-weight:500;margin-top:11px;padding-top:9px;border-top:1px solid var(--b)"><span>Fecha '+(cartao.fechamento||'—')+'</span><span>Vence '+(cartao.vencimento||'—')+'</span></div>';
+      +'<div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--t3);font-weight:500;margin-top:11px;padding-top:9px;border-top:1px solid var(--b)"><span>Fecha dia '+(cartao.fechamento||'—')+'</span><span>Vence dia '+(cartao.vencimento||'—')+'</span></div>';
     cardsSection.appendChild(cardEl);
   });
   container.appendChild(cardsSection);
@@ -2516,7 +2560,7 @@ function showCartaoDetalhes(cartaoOrEvent){
       </div>
 
       <div style="margin-bottom:1.5rem;padding:1rem;background:var(--bg);border-radius:8px">
-        <h3 style="font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;margin-bottom:1rem">Fatura atual</h3>
+        <h3 style="font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;margin-bottom:1rem">Fatura de ${['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][+mes.slice(5)-1]}/${mes.slice(0,4)}</h3>
         ${_cartaoResumoHtml(cartao)}
       </div>
 
