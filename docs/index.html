@@ -602,7 +602,8 @@ function getCartoes(){if(!D['_cartoes']||!D['_cartoes'].length)D['_cartoes']=JSO
 function _cardNome(cid){const c=(D._cartoes||[]).find(x=>x.id===cid);return c?c.nome:cid;}
 function _faturaMesUsado(cid){const k=_cardNome(cid);const fa=D['_faturas']||{};if(fa[mes]&&((fa[mes][k]||0)>0||(fa[mes][cid]||0)>0))return mes;const ms=Object.keys(fa).filter(m=>/^\d{4}-\d{2}$/.test(m)&&m<=mes&&fa[m]&&((fa[m][k]||0)>0||(fa[m][cid]||0)>0)).sort();return ms.length?ms[ms.length-1]:mes;}
 function getFatura(cid){const k=_cardNome(cid);const mm=_faturaMesUsado(cid);const m=D['_faturas']&&D['_faturas'][mm];return (m&&(m[k]!=null?m[k]:m[cid]))||0;}
-function setFatura(cid,valor){if(!D['_faturas'])D['_faturas']={};if(!D['_faturas'][mes])D['_faturas'][mes]={};D['_faturas'][mes][cid]=valor;}
+function setFatura(cid,valor){if(!D['_faturas'])D['_faturas']={};if(!D['_faturas'][mes])D['_faturas'][mes]={};D['_faturas'][mes][_cardNome(cid)]=valor;}
+function editFaturaModal(cid){const c=getCartoes().find(x=>x.id===cid);if(!c)return;_formModal('Valor da fatura — '+c.nome+' ('+mes+')',[{label:'Valor da fatura (R$)',key:'valor',type:'number',value:getFatura(cid)}],vals=>{setFatura(cid,+(+vals.valor||0).toFixed(2));syncCartaoLancamento(c);saveData();document.querySelectorAll('.cartao-modal').forEach(e=>e.remove());if(document.getElementById('page-cartoes'))renderCartoesDesktopNovo();render();toast('Fatura atualizada + lançamento vinculado ✓');});}
 function getRecs(){if(!D['_recorrentes'])D['_recorrentes']=[];return D['_recorrentes'];}
 
 /* ── SUPABASE AUTH + EDGE ── */
@@ -2502,6 +2503,8 @@ function showCartaoDetalhes(cartaoOrEvent){
       </div>
 
       ${_faturaPdfUrl(cartao.id)?`<a href="${_faturaPdfUrl(cartao.id)}" target="_blank" rel="noopener" style="display:block;text-align:center;padding:.6rem;background:#e8f8ef;color:var(--g);border-radius:8px;font-weight:700;text-decoration:none;margin-bottom:.5rem">📄 Ver fatura anexada</a>`:''}
+      <button onclick="editFaturaModal('${cartao.id}')" style="width:100%;padding:.6rem;background:var(--gl);color:var(--g);border:none;border-radius:8px;font-weight:700;cursor:pointer;margin-bottom:.5rem;font-family:Inter,sans-serif">✎ Atualizar valor da fatura (${mes}) → gera lançamento</button>
+      <button onclick="pagarFaturaCartao('${cartao.id}');this.closest('.cartao-modal').remove()" style="width:100%;padding:.6rem;background:var(--bg);color:var(--t2);border:1.5px solid var(--b);border-radius:8px;font-weight:700;cursor:pointer;margin-bottom:.5rem;font-family:Inter,sans-serif">✓ Marcar fatura como paga</button>
       <button onclick="anexarFaturaPDF('${cartao.id}')" style="width:100%;padding:.6rem;background:var(--bg);color:var(--t2);border:1.5px solid var(--b);border-radius:8px;font-weight:700;cursor:pointer;margin-bottom:.5rem;font-family:Inter,sans-serif">📎 Anexar fatura (PDF)</button>
       <button onclick="addFaturaItem('${cartao.id}')" style="width:100%;padding:.6rem;background:var(--bg);color:var(--t2);border:1.5px solid var(--b);border-radius:8px;font-weight:700;cursor:pointer;margin-bottom:.5rem;font-family:Inter,sans-serif">+ Adicionar item categorizado</button>
       <button onclick="this.closest('.cartao-modal').remove()" style="width:100%;padding:.6rem;background:var(--g);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer">Fechar</button>
