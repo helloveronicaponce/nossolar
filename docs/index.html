@@ -876,7 +876,15 @@ function toggleNavPicker(e){
     },50);
   }
 }
-function changeMes(m){mes=m;closeDd();_pickerOpen=false;const p=document.getElementById('nav-picker');if(p)p.style.display='none';buildSel();render();renderSide();if(!isMob()){const _a=document.querySelector('.desktop-tab.active');if(_a)switchPage(_a.dataset.page);}}
+// Re-render completo após uma mutação: além da tabela (render) e do resumo lateral (renderSide),
+// re-renderiza a PÁGINA ativa do desktop (ex.: card "Saldos" da aba Lançamentos / Visão Geral /
+// Patrimônio), que antes só atualizava ao trocar de aba ou dar F5.
+function reRender(){
+  render();
+  renderSide();
+  if(!isMob()){const _a=document.querySelector('.desktop-tab.active');if(_a&&_a.dataset.page)switchPage(_a.dataset.page);}
+}
+function changeMes(m){mes=m;closeDd();_pickerOpen=false;const p=document.getElementById('nav-picker');if(p)p.style.display='none';buildSel();reRender();}
 function setFilter(f,el){fil=f;closeDd();document.querySelectorAll('.pill').forEach(b=>b.classList.remove('on'));el.classList.add('on');render();}
 function toggleFiltro(ev){ if(ev)ev.stopPropagation(); const d=document.getElementById('filtro-dd'); if(!d)return; const willOpen=d.style.display!=='block'; d.style.display=willOpen?'block':'none'; if(willOpen){ setTimeout(()=>{ function h(e){ if(!d.contains(e.target)&&!(e.target.closest&&e.target.closest('#filtro-btn'))){ d.style.display='none'; document.removeEventListener('click',h);} } document.addEventListener('click',h); },0); } }
 function toggleStatus2(st,chk){ if(chk)filtSet.add(st); else filtSet.delete(st); render(); }
@@ -1712,7 +1720,7 @@ function editCartao(cid,field,el){
   const inp=document.createElement('input');inp.type='number';inp.value=isFatura?getFatura(cid).toFixed(2):c[field];
   inp.step=isFatura?'0.01':'1';inp.min='0';if(!isFatura)inp.max='31';inp.className='cc-inp';
   el.innerHTML='';el.appendChild(inp);inp.focus();inp.select();
-  const commit=()=>{const v=parseFloat(inp.value);if(!isNaN(v)&&v>=0){if(isFatura){setFatura(cid,+v.toFixed(2));}else{c[field]=Math.max(1,Math.min(31,Math.round(v)));D['_cartoes']=cartoes;}syncCartaoLancamento(c);saveData();}render();renderSide();};
+  const commit=()=>{const v=parseFloat(inp.value);if(!isNaN(v)&&v>=0){if(isFatura){setFatura(cid,+v.toFixed(2));}else{c[field]=Math.max(1,Math.min(31,Math.round(v)));D['_cartoes']=cartoes;}syncCartaoLancamento(c);saveData();}reRender();};
   inp.addEventListener('blur',commit);inp.addEventListener('keydown',ev=>{if(ev.key==='Enter')inp.blur();if(ev.key==='Escape')renderSide();});inp.addEventListener('click',ev=>ev.stopPropagation());
 }
 function pagarFaturaCartao(cid){
@@ -1721,7 +1729,7 @@ function pagarFaturaCartao(cid){
   const idx=D[mes].findIndex(r=>r.id===lancId);
   if(idx>=0){D[mes][idx].status='pago';D[mes][idx].pag=today();}
   else{syncCartaoLancamento(c);const i=D[mes].findIndex(r=>r.id===lancId);if(i>=0){D[mes][i].status='pago';D[mes][i].pag=today();}}
-  saveData();render();renderSide();toast('Fatura '+c.nome+' marcada como paga ✅');
+  saveData();reRender();toast('Fatura '+c.nome+' marcada como paga ✅');
 }
 
 /* ── STATUS DROPDOWN ── */
@@ -1750,7 +1758,7 @@ function toggleStatus(e,id){
         D[mes][idx].status=o.v;if(o.v==='pago')D[mes][idx].pag=today();
         if(o.v!=='pago')D[mes][idx].pag=null;
       }
-      saveData();render();renderSide();closeDd();
+      saveData();reRender();closeDd();
     });
     el.appendChild(d);
   });
@@ -1878,13 +1886,13 @@ function patchVal(id,value,scope,rOrig){
       if(!Array.isArray(D[m]))return;
       D[m].forEach((r,i)=>{if(r._recClone===paiId)D[m][i].valor=value;});
     });
-    saveData();render();renderSide();return;
+    saveData();reRender();return;
   }
   if(!D[mes])D[mes]=[];
   const existIdx=D[mes].findIndex(r=>r.id===id);
   if(existIdx>=0){D[mes][existIdx].valor=value;}
   else{D[mes].push({...rOrig,valor:value});}
-  saveData();render();renderSide();
+  saveData();reRender();
 }
 
 /* ── PATCH ── */
@@ -1895,11 +1903,11 @@ function patch(id,field,value){
     if(newMes!==mes){
       const entry={...D[mes][idx],venc:value};D[mes].splice(idx,1);
       if(!D[newMes])D[newMes]=[];D[newMes].push(entry);
-      saveData();render();renderSide();return;
+      saveData();reRender();return;
     }
   }
-  if(field==='pag'&&value){const newMes=value.slice(0,7);if(newMes!==mes){const entry={...D[mes][idx],pag:value};D[mes].splice(idx,1);if(!D[newMes])D[newMes]=[];D[newMes].push(entry);saveData();render();renderSide();return;}}
-  D[mes][idx][field]=value;saveData();render();renderSide();
+  if(field==='pag'&&value){const newMes=value.slice(0,7);if(newMes!==mes){const entry={...D[mes][idx],pag:value};D[mes].splice(idx,1);if(!D[newMes])D[newMes]=[];D[newMes].push(entry);saveData();reRender();return;}}
+  D[mes][idx][field]=value;saveData();reRender();
 }
 
 /* ── PATCH DATE (recorrentes com escopo) ── */
@@ -1935,7 +1943,7 @@ function patchDate(id,field,value,scope,rOrig){
         D[mes][ciIdx].venc=mes+'-'+newDay;
       }
     }
-    saveData();render();renderSide();
+    saveData();reRender();
     return;
   }
 
@@ -1949,17 +1957,17 @@ function patchDate(id,field,value,scope,rOrig){
       if(newMes!==mes){
         const entry={...D[mes][existIdx],venc:value};D[mes].splice(existIdx,1);
         if(!D[newMes])D[newMes]=[];D[newMes].push(entry);
-        saveData();render();renderSide();return;
+        saveData();reRender();return;
       }
       D[mes][existIdx].venc=value;
-      saveData();render();renderSide();
+      saveData();reRender();
       return;
     }
     // É um clone virtual — grava um override explícito neste mês
     if(isClone&&rOrig){
       const override={...rOrig,id:id,_recClone:paiId,venc:value,pag:null,status:rOrig.status||'pendente'};
       D[mes].push(override);
-      saveData();render();renderSide();
+      saveData();reRender();
       return;
     }
   }
@@ -1972,7 +1980,7 @@ function delItem(id){
   const r=rows().find(x=>x.id===id);
   if(r&&(r.recorrente||r._recClone)){delRecMenu(id,r);return;}
   if(!confirm('Remover este lançamento?'))return;
-  D[mes]=(D[mes]||[]).filter(x=>x.id!==id);saveData();render();renderSide();
+  D[mes]=(D[mes]||[]).filter(x=>x.id!==id);saveData();reRender();
 }
 /* ── MENU de exclusão / encerramento de recorrentes ── */
 function delRecMenu(id,r){
@@ -1994,9 +2002,9 @@ function delRecMenu(id,r){
   const close=()=>ov.remove();
   ov.addEventListener('click',e=>{if(e.target===ov)close();});
   const esteBtn=ov.querySelector('.dr-este');
-  if(esteBtn)esteBtn.onclick=()=>{close();if(!D[mes])D[mes]=[];D[mes].push({id:'rec_'+paiId+'_'+mes,_deletado:true});saveData();render();renderSide();toast('Pulado em '+lbl);};
+  if(esteBtn)esteBtn.onclick=()=>{close();if(!D[mes])D[mes]=[];D[mes].push({id:'rec_'+paiId+'_'+mes,_deletado:true});saveData();reRender();toast('Pulado em '+lbl);};
   ov.querySelector('.dr-fim').onclick=()=>{close();encerrarRecorrente(paiId,lbl);};
-  ov.querySelector('.dr-all').onclick=()=>{close();if(!confirm('Apagar "'+(r.desc||'')+'" de TODOS os meses (inclusive histórico)?'))return;Object.keys(D).forEach(m=>{if(Array.isArray(D[m]))D[m]=D[m].filter(x=>x.id!==paiId&&x._recClone!==paiId);});saveData();render();renderSide();toast('Recorrência apagada');};
+  ov.querySelector('.dr-all').onclick=()=>{close();if(!confirm('Apagar "'+(r.desc||'')+'" de TODOS os meses (inclusive histórico)?'))return;Object.keys(D).forEach(m=>{if(Array.isArray(D[m]))D[m]=D[m].filter(x=>x.id!==paiId&&x._recClone!==paiId);});saveData();reRender();toast('Recorrência apagada');};
   ov.querySelector('.dr-can').onclick=close;
 }
 function encerrarRecorrente(paiId,lbl){
@@ -2004,7 +2012,7 @@ function encerrarRecorrente(paiId,lbl){
   Object.keys(D).forEach(m=>{if(Array.isArray(D[m])){const it=D[m].find(x=>x.id===paiId&&x.recorrente&&!x._recClone);if(it){it._ate=mes;achou=true;}}});
   // remove clones já materializados nos meses posteriores ao de encerramento
   Object.keys(D).forEach(m=>{if(Array.isArray(D[m])&&m>mes)D[m]=D[m].filter(x=>x._recClone!==paiId);});
-  saveData();render();renderSide();toast(achou?'Recorrência encerrada em '+lbl:'Recorrência não encontrada');
+  saveData();reRender();toast(achou?'Recorrência encerrada em '+lbl:'Recorrência não encontrada');
 }
 
 /* ── BULK SELECT ── */
@@ -2013,12 +2021,12 @@ function onCBChange(cb){const id=cb.dataset.id;const row=cb.closest('.tr');if(cb
 function toggleAllCB(checked){selIds.clear();document.querySelectorAll('.row-cb').forEach(cb=>{cb.checked=checked;const row=cb.closest('.tr');if(checked){selIds.add(cb.dataset.id);row&&row.classList.add('sel');}else{row&&row.classList.remove('sel');}});updateBulkBar();}
 function updateBulkBar(){const bar=document.getElementById('bulk-bar');const cnt=document.getElementById('bulk-count');if(!bar)return;if(selIds.size>0){bar.classList.add('on');if(cnt)cnt.textContent=selIds.size+' selecionado'+(selIds.size>1?'s':'');}else{bar.classList.remove('on');const cbAll=document.getElementById('cb-all');if(cbAll)cbAll.checked=false;}}
 function clearSel(){selIds.clear();document.querySelectorAll('.row-cb').forEach(cb=>{cb.checked=false;cb.closest('.tr')?.classList.remove('sel');});updateBulkBar();}
-function bulkDelete(){if(!selIds.size)return;if(!confirm('Remover '+selIds.size+' lançamento(s)?'))return;selIds.forEach(id=>{D[mes]=(D[mes]||[]).filter(x=>x.id!==id);});selIds.clear();saveData();render();renderSide();}
-function bulkStatus(status){if(!selIds.size)return;const cnt=selIds.size;if(!D[mes])D[mes]=[];const virt=rows();selIds.forEach(id=>{const idx=D[mes].findIndex(x=>x.id===id);const pag=status==='pago'?today():null;if(idx>=0){D[mes][idx].status=status;D[mes][idx].pag=pag;}else{const r=virt.find(x=>x.id===id);if(r)D[mes].push({...r,status,pag});}});selIds.clear();saveData();render();renderSide();toast('✅ '+cnt+' itens marcados como '+(SL[status]||status));}
+function bulkDelete(){if(!selIds.size)return;if(!confirm('Remover '+selIds.size+' lançamento(s)?'))return;selIds.forEach(id=>{D[mes]=(D[mes]||[]).filter(x=>x.id!==id);});selIds.clear();saveData();reRender();}
+function bulkStatus(status){if(!selIds.size)return;const cnt=selIds.size;if(!D[mes])D[mes]=[];const virt=rows();selIds.forEach(id=>{const idx=D[mes].findIndex(x=>x.id===id);const pag=status==='pago'?today():null;if(idx>=0){D[mes][idx].status=status;D[mes][idx].pag=pag;}else{const r=virt.find(x=>x.id===id);if(r)D[mes].push({...r,status,pag});}});selIds.clear();saveData();reRender();toast('✅ '+cnt+' itens marcados como '+(SL[status]||status));}
 
 /* ── EDIT SALDO ── */
-function editSaldo(e){
-  e.stopPropagation();const el=document.getElementById('svd');if(!el||el.querySelector('input'))return;
+function editSaldo(e,elId){
+  e.stopPropagation();const el=document.getElementById(elId||'svd');if(!el||el.querySelector('input'))return;
   const all=rows();const pOut=all.filter(r=>r.tipo==='out'&&r.status==='pago').reduce((s,r)=>s+r.valor,0);
   const pIn=all.filter(r=>r.tipo==='in'&&r.status==='pago').reduce((s,r)=>s+r.valor,0);
   const metaAtual=(D[mes+'_meta']||{});
@@ -2038,9 +2046,9 @@ function editSaldo(e){
       D[mes+'_meta'].saldoInicialAjustado=+(val-(pIn-pOut)).toFixed(2);
       saveData();toast('Saldo atualizado: '+fv(val));
     }
-    render();renderSide();
+    reRender();
   };
-  inp.addEventListener('blur',commit);inp.addEventListener('keydown',ev=>{if(ev.key==='Enter')inp.blur();if(ev.key==='Escape'){render();renderSide();}});inp.addEventListener('click',ev=>ev.stopPropagation());
+  inp.addEventListener('blur',commit);inp.addEventListener('keydown',ev=>{if(ev.key==='Enter')inp.blur();if(ev.key==='Escape'){reRender();}});inp.addEventListener('click',ev=>ev.stopPropagation());
 }
 
 /* ── MODAL ── */
@@ -2098,7 +2106,7 @@ function saveItem(){
   if(!D[mes])D[mes]=[];
   if(eid){const idx=D[mes].findIndex(x=>x.id===eid);if(idx>=0)Object.assign(D[mes][idx],item);}
   else{D[mes].push({...item,id:uid()});if(criar&&pa<parcelas){for(let i=pa+1;i<=parcelas;i++){const fm=addM(mes,i-pa);if(!D[fm])D[fm]=[];D[fm].push({...item,parcelaAtual:i,status:'pendente',pag:null,venc:sameDay(item.venc,fm),id:uid()});}}}
-  closeModal();saveData();render();renderSide();
+  closeModal();saveData();reRender();
 }
 
 /* ── EXPORT (CSV + JSON) ── */
@@ -2298,8 +2306,8 @@ function renderLancamentosDesktop(){
     <div class="nl-eyebrow" style="margin-bottom:.6rem">Saldos</div>
     <div style="display:flex;flex-direction:column;gap:0.3rem">
       <div>
-        <div style="font-size:9px;color:var(--t3);margin-bottom:2px">Saldo Atual</div>
-        <div style="font-size:24px;font-weight:700;color:${saldoAtual>=0?'var(--g)':'var(--r)'}">${fv(saldoAtual)}</div>
+        <div style="font-size:9px;color:var(--t3);margin-bottom:2px;display:flex;align-items:center;gap:6px">Saldo Atual <span onclick="editSaldo(event,'svd-desk')" title="Ajustar o saldo manualmente" style="cursor:pointer;background:#e8f8ef;color:var(--g);border:1px solid var(--g);border-radius:5px;padding:1px 6px;font-size:10px;font-weight:700;text-transform:none;letter-spacing:0">✎ Ajustar</span></div>
+        <div id="svd-desk" onclick="editSaldo(event,'svd-desk')" title="Clique para ajustar" style="font-size:24px;font-weight:700;cursor:pointer;color:${saldoAtual>=0?'var(--g)':'var(--r)'}">${fv(saldoAtual)}</div>
       </div>
       <div style="display:flex;gap:1rem;justify-content:space-between;font-size:12px">
         <div><div style="font-size:10px;color:var(--t3);margin-bottom:1px">Saldo inicial <span style="opacity:.65">· 1º dia</span></div><div style="font-weight:600;color:var(--t)">${fv(saldoInicialMes)}</div></div>
@@ -3604,7 +3612,7 @@ async function init(){
   const tbMEl=document.getElementById('tb-m');if(tbMEl)tbMEl.addEventListener('click',tbDelegate);
 
   // Responsividade
-  window.addEventListener('resize',()=>{checkLayout();render();renderSide();});
+  window.addEventListener('resize',()=>{checkLayout();reRender();});
 
   // Autenticação e carregamento de dados
   await checkAuth();
