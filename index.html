@@ -733,14 +733,40 @@ function getSaldoFinal(m,depth){
   const totIn=pr.filter(r=>r.tipo==='in').reduce((s,r)=>s+r.valor,0);
   const totOut=pr.filter(r=>r.tipo==='out').reduce((s,r)=>s+r.valor,0);
   // saldo FINAL = projeção do último dia do mês (sempre inclui os pendentes)
+  // Ajuste manual: reconcilia o saldo INICIAL do mês; a partir dele tudo flui normalmente.
+  // (curto-circuita a recursão exatamente como o formato antigo — não altera o carry-forward)
+  if(meta.saldoInicialAjustado!==undefined){
+    return meta.saldoInicialAjustado + totIn - totOut;
+  }
+  // Legado: valor absoluto do saldo atual (congelava o saldo — migrado no load p/ saldoInicialAjustado)
   if(meta.saldoAtualManual!==undefined){
-    // saldo atual ajustado à mão + o que ainda falta acontecer no mês
     const pgIn=pr.filter(r=>r.tipo==='in'&&r.status==='pago').reduce((s,r)=>s+r.valor,0);
     const pgOut=pr.filter(r=>r.tipo==='out'&&r.status==='pago').reduce((s,r)=>s+r.valor,0);
     return meta.saldoAtualManual + (totIn-pgIn) - (totOut-pgOut);
   }
   const si=getSI(m,(depth||0)+1);
   return si + totIn - totOut;   // carry-forward: este final vira o inicial do mês seguinte
+}
+
+// Migração: converte o saldo manual antigo (valor absoluto, que CONGELAVA o saldo atual)
+// para um saldo INICIAL ajustado -> saldoInicialAjustado = valorDigitado − (pagos do mês).
+// Assim o saldo atual mantém exatamente o mesmo valor no momento da migração, mas volta a
+// reagir a lançamentos marcados como pagos (e o carry-forward permanece idêntico).
+function migrateSaldoAjuste(){
+  let changed=false;
+  Object.keys(D).forEach(k=>{
+    if(!/_meta$/.test(k))return;
+    const meta=D[k];
+    if(!meta||typeof meta!=='object'||meta.saldoAtualManual===undefined)return;
+    const m=k.slice(0,-5);
+    const pr=rowsOf(m);
+    const pgIn=pr.filter(r=>r.tipo==='in'&&r.status==='pago').reduce((s,r)=>s+r.valor,0);
+    const pgOut=pr.filter(r=>r.tipo==='out'&&r.status==='pago').reduce((s,r)=>s+r.valor,0);
+    if(meta.saldoInicialAjustado===undefined)meta.saldoInicialAjustado=+(meta.saldoAtualManual-(pgIn-pgOut)).toFixed(2);
+    delete meta.saldoAtualManual;
+    changed=true;
+  });
+  return changed;
 }
 
 // Retorna todos os lançamentos de um mês (incluindo recorrentes injetados) sem alterar global
@@ -932,13 +958,13 @@ function render(){
   const pIn=all.filter(r=>r.tipo==='in'&&r.status==='pago').reduce((s,r)=>s+r.valor,0);
   const si=getSI(mes);const metaM=D[mes+'_meta']||{};
   const sAtualCalc=si+pIn-pOut;
-  const sAtual=metaM.saldoAtualManual!==undefined?metaM.saldoAtualManual:sAtualCalc;
+  const sAtual=metaM.saldoInicialAjustado!==undefined?metaM.saldoInicialAjustado+pIn-pOut:metaM.saldoAtualManual!==undefined?metaM.saldoAtualManual:sAtualCalc;
   // Saldo final = saldo atual + pendentes (projeção)
   const pendIn=all.filter(r=>r.tipo==='in'&&r.status!=='pago').reduce((s,r)=>s+r.valor,0);
   const pendOut=all.filter(r=>r.tipo==='out'&&r.status!=='pago').reduce((s,r)=>s+r.valor,0);
   const sFinal=sAtual+pendIn-pendOut;
   const hasPend=all.some(r=>r.status!=='pago');
-  const hasMetaManual=metaM.saldoAtualManual!==undefined||metaM.saldoInicialManual!==undefined;
+  const hasMetaManual=metaM.saldoInicialAjustado!==undefined||metaM.saldoAtualManual!==undefined||metaM.saldoInicialManual!==undefined;
   const proj=calcProj(all,sAtual);
   const minP=Object.values(proj).length?Math.min(...Object.values(proj)):sAtual;
   const tagSI=hasMetaManual?'ajustado':mesFuturo(mes)?'projetado':'carry-forward';
@@ -1996,7 +2022,7 @@ function editSaldo(e){
   const all=rows();const pOut=all.filter(r=>r.tipo==='out'&&r.status==='pago').reduce((s,r)=>s+r.valor,0);
   const pIn=all.filter(r=>r.tipo==='in'&&r.status==='pago').reduce((s,r)=>s+r.valor,0);
   const metaAtual=(D[mes+'_meta']||{});
-  const cur=metaAtual.saldoAtualManual!==undefined?metaAtual.saldoAtualManual:getSI(mes)+pIn-pOut;
+  const cur=metaAtual.saldoInicialAjustado!==undefined?metaAtual.saldoInicialAjustado+pIn-pOut:metaAtual.saldoAtualManual!==undefined?metaAtual.saldoAtualManual:getSI(mes)+pIn-pOut;
   const inp=document.createElement('input');inp.type='number';inp.value=cur.toFixed(2);inp.step='0.01';
   inp.style.cssText='font-size:18px;font-weight:700;width:150px;border:2px solid var(--g);border-radius:6px;padding:2px 8px;outline:none;color:var(--t);background:var(--w);font-family:Inter,sans-serif';
   el.textContent='';el.appendChild(inp);inp.focus();inp.select();
@@ -2007,7 +2033,9 @@ function editSaldo(e){
       D[mes]=(D[mes]||[]).filter(r=>!r._correcao);
       if(!D[mes+'_meta'])D[mes+'_meta']={};
       delete D[mes+'_meta'].saldoInicialManual; // limpa formato antigo
-      D[mes+'_meta'].saldoAtualManual=+val.toFixed(2);
+      delete D[mes+'_meta'].saldoAtualManual;   // limpa formato absoluto congelado
+      // Grava como saldo INICIAL ajustado: o saldo atual passa a reagir a novos pagamentos
+      D[mes+'_meta'].saldoInicialAjustado=+(val-(pIn-pOut)).toFixed(2);
       saveData();toast('Saldo atualizado: '+fv(val));
     }
     render();renderSide();
@@ -3420,10 +3448,11 @@ function _divTotal(d){ return (d.total_parcelas!=null?d.total_parcelas:d.parcela
 function totalDividasRestante(){ return _dividasArr().reduce((s,d)=>s+Math.max(0,(_divTotal(d)-_divPagas(d)))*_divParcela(d),0); }
 function saldoAtualMes(){
   const meta=D[mes+'_meta']||{};
-  if(meta.saldoAtualManual!==undefined)return meta.saldoAtualManual;
   const r=rows();
   const pIn=r.filter(x=>x.tipo==='in'&&x.status==='pago').reduce((a,x)=>a+x.valor,0);
   const pOut=r.filter(x=>x.tipo==='out'&&x.status==='pago').reduce((a,x)=>a+x.valor,0);
+  if(meta.saldoInicialAjustado!==undefined)return meta.saldoInicialAjustado+pIn-pOut;
+  if(meta.saldoAtualManual!==undefined)return meta.saldoAtualManual; // legado pré-migração
   return getSI(mes)+pIn-pOut;
 }
 /* ── V1 Patrimônio Líquido + V3 Taxa de Poupança ── */
@@ -3584,6 +3613,8 @@ async function init(){
       await loadFromDB();
       const _nrm=_limpaFaturasRetro();
       if(_nrm>0){console.log('🧹 Removidos '+_nrm+' pagamentos de fatura criados por engano em meses passados');saveData();}
+      const _migAj=migrateSaldoAjuste();
+      if(_migAj){console.log('🔄 Saldo ajustado migrado p/ formato reativo — saldo atual volta a reagir a pagamentos');saveData();}
 
       if(isMob()){
         // Mobile: renderizar visão geral por padrão
