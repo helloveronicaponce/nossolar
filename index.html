@@ -723,6 +723,64 @@ function rows(){
   return result;
 }
 
+/* ── PARCELAMENTOS (histórico de compras parceladas) ── */
+// Agrupa lançamentos com parcelas>1 pela compra de origem (desc+cat+valor+total de parcelas),
+// já que cada parcela é gravada como um registro independente em D[mês].
+function getParcelamentos(){
+  const grupos={};
+  Object.keys(D).filter(k=>/^\d{4}-\d{2}$/.test(k)&&Array.isArray(D[k])).forEach(m=>{
+    D[m].forEach(r=>{
+      if(r._deletado||r.recorrente||r._recClone)return;
+      const p=r.parcelas||1;
+      if(p<=1)return;
+      if(String(r.id||'').startsWith('cc_'))return;
+      const key=[r.desc,r.cat,(r.valor||0).toFixed(2),p].join('|');
+      if(!grupos[key])grupos[key]={desc:r.desc,cat:r.cat,valor:r.valor,parcelas:p,itens:[]};
+      grupos[key].itens.push({venc:r.venc,status:r.status,parcelaAtual:r.parcelaAtual||1});
+    });
+  });
+  return Object.values(grupos).map(g=>{
+    g.itens.sort((a,b)=>a.parcelaAtual-b.parcelaAtual);
+    const abertas=g.itens.filter(i=>i.status!=='pago');
+    g.pagas=g.itens.length-abertas.length;
+    g.restantes=abertas.length;
+    g.quitado=abertas.length===0;
+    g.proxVenc=abertas[0]?abertas[0].venc:null;
+    g.restanteValor=abertas.length*(g.valor||0);
+    return g;
+  }).sort((a,b)=>{
+    if(a.quitado!==b.quitado)return a.quitado?1:-1;
+    return (a.proxVenc||'9999-99').localeCompare(b.proxVenc||'9999-99');
+  });
+}
+
+function renderParcelamentosCard(){
+  const grupos=getParcelamentos();
+  if(!grupos.length)return'';
+  const abertos=grupos.filter(g=>!g.quitado);
+  const quitados=grupos.filter(g=>g.quitado);
+  const totalAberto=abertos.reduce((s,g)=>s+g.restanteValor,0);
+  let html='<div class="card"><div class="nl-eyebrow" style="margin-bottom:.6rem">🧾 Compras Parceladas</div>';
+  if(!abertos.length){
+    html+='<div style="font-size:13px;color:var(--g);font-weight:600">✅ Tudo quitado — nenhuma parcela em aberto</div>';
+  } else {
+    html+='<div style="font-size:11.5px;color:var(--t3);margin-bottom:.7rem">'+abertos.length+' em aberto · '+fv(totalAberto)+' restante</div>';
+    html+=abertos.map(g=>{
+      const pct=Math.round(g.pagas/g.parcelas*100);
+      return '<div style="margin-bottom:.7rem;padding-bottom:.7rem;border-bottom:1px solid var(--b)">'
+        +'<div style="display:flex;justify-content:space-between;gap:.5rem;font-size:12.5px;font-weight:600"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+g.desc+'</span><span style="flex-shrink:0;color:var(--t2);font-weight:500">'+fv(g.valor)+'/mês</span></div>'
+        +'<div class="pb2"><div class="pf" style="width:'+pct+'%;background:var(--g)"></div></div>'
+        +'<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t3)"><span>'+g.pagas+' de '+g.parcelas+' pagas</span><span>'+(g.proxVenc?'próxima '+fd(g.proxVenc):'')+'</span></div>'
+        +'</div>';
+    }).join('');
+  }
+  if(quitados.length){
+    html+='<div style="font-size:11px;color:var(--t3);margin-top:.2rem">✅ '+quitados.length+' já quitado'+(quitados.length>1?'s':'')+': '+quitados.map(g=>g.desc).join(', ')+'</div>';
+  }
+  html+='</div>';
+  return html;
+}
+
 /* ── SALDO ── */
 // Retorna o saldo FINAL de um mês (= o que sobrou ao fim do mês)
 // Usado como saldo inicial do mês seguinte
@@ -2407,6 +2465,8 @@ function renderLancamentosDesktop(){
   avisosCard.innerHTML='<div class="nl-eyebrow" style="margin-bottom:.75rem">Avisos</div>';
   avisosCard.appendChild(alertsDiv);
   if(topPanel.children[0])colSide.appendChild(topPanel.children[0]); // Saldos
+  const parcelHtml=renderParcelamentosCard();
+  if(parcelHtml){const parcelDiv=document.createElement('div');parcelDiv.innerHTML=parcelHtml;colSide.appendChild(parcelDiv.firstChild);}
   colSide.appendChild(avisosCard);
   while(topPanel.children.length)colSide.appendChild(topPanel.children[0]); // Entradas, Saídas, Balanço
   colMain.appendChild(tableCard);colMain.appendChild(navMeses);
