@@ -573,6 +573,12 @@ body.dark-mode{--g2:#7fae98;--r2:#cd9089}
           <div id="pprev" style="display:none;font-size:12px;color:var(--t2);background:var(--bg);border-radius:6px;padding:.4rem .6rem"></div>
         </div>
       </div>
+      <div id="parcela-hist" style="display:none" class="fg full">
+        <div class="fs">
+          <div class="fst">📜 Histórico de parcelas</div>
+          <div id="parcela-hist-body" style="max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:2px"></div>
+        </div>
+      </div>
     </div>
     <div class="mf"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn g" onclick="saveItem()">Salvar</button></div>
   </div>
@@ -2139,6 +2145,7 @@ function openModal(id){
     const p=r.parcelas||1;document.getElementById('f-pt').value=p>1?'parcelado':'unico';
     document.getElementById('f-pa').value=r.parcelaAtual||1;document.getElementById('f-pn').value=p;
     document.getElementById('f-cp').value='0';
+    if(p>1)renderParcelaHistorico(r);else document.getElementById('parcela-hist').style.display='none';
   } else {
     document.getElementById('f-tipo').value='out';document.getElementById('f-status').value='pendente';
     document.getElementById('f-venc').value=mes+'-01';document.getElementById('f-pag').value='';
@@ -2147,8 +2154,40 @@ function openModal(id){
     const recChk2=document.getElementById('f-rec');if(recChk2)recChk2.checked=false;
     document.getElementById('f-pt').value='unico';document.getElementById('f-pa').value='1';document.getElementById('f-pn').value='12';
     document.getElementById('f-cp').value='1';
+    document.getElementById('parcela-hist').style.display='none';
   }
   toggleP();document.getElementById('mo').style.display='flex';
+}
+/* Histórico de todas as parcelas de uma compra parcelada, agrupadas pela mesma chave usada em getParcelamentos() */
+function renderParcelaHistorico(r){
+  const key=[r.desc,r.cat,(r.valor||0).toFixed(2),r.parcelas].join('|');
+  const itens=[];
+  Object.keys(D).filter(k=>/^\d{4}-\d{2}$/.test(k)&&Array.isArray(D[k])).forEach(m=>{
+    D[m].forEach(x=>{
+      if(x._deletado||x.recorrente||x._recClone)return;
+      const p=x.parcelas||1;
+      if(p<=1)return;
+      if(String(x.id||'').startsWith('cc_'))return;
+      const k2=[x.desc,x.cat,(x.valor||0).toFixed(2),p].join('|');
+      if(k2===key)itens.push({mes:m,venc:x.venc,pag:x.pag,status:x.status,parcelaAtual:x.parcelaAtual||1,valor:x.valor,id:x.id});
+    });
+  });
+  const box=document.getElementById('parcela-hist'),body=document.getElementById('parcela-hist-body');
+  if(!itens.length){box.style.display='none';return;}
+  itens.sort((a,b)=>a.parcelaAtual-b.parcelaAtual);
+  const fdy=d=>{if(!d)return'—';const[y,mo,da]=d.split('-');return da+'/'+mo+'/'+y;};
+  body.innerHTML=itens.map(it=>{
+    const cur=it.id===eid;
+    const st=SO.find(s=>s.v===it.status)||SO[1];
+    return '<div style="display:flex;align-items:center;gap:8px;padding:.4rem .5rem;border-radius:6px;font-size:12px;'+(cur?'background:var(--gl);font-weight:700':'')+'">'
+      +'<span style="width:34px;flex-shrink:0;color:var(--t3)">'+it.parcelaAtual+'/'+r.parcelas+'</span>'
+      +'<span style="width:74px;flex-shrink:0">'+fv(it.valor)+'</span>'
+      +'<span style="flex:1;color:var(--t3)">venc '+fdy(it.venc)+'</span>'
+      +'<span style="flex:1;color:var(--t3)">pago '+fdy(it.pag)+'</span>'
+      +'<span style="flex-shrink:0;padding:1px 8px;border-radius:99px;font-size:10px;font-weight:700;background:'+st.d+';color:'+st.c+'">'+st.l+'</span>'
+      +'</div>';
+  }).join('');
+  box.style.display='block';
 }
 function closeModal(){document.getElementById('mo').style.display='none';eid=null;}
 function saveItem(){
