@@ -426,6 +426,17 @@ button:focus-visible,a:focus-visible,input:focus-visible,.pill:focus-visible,.de
 /* grade de cartões: 4 por linha (2 linhas p/ 8 cartões) */
 .cartoes-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.7rem;margin:1.1rem 0}
 @media(max-width:820px){.cartoes-grid{grid-template-columns:repeat(2,1fr)}}
+/* toggle cards/tabela da aba Cartões */
+.nl-view-toggle{display:inline-flex;background:var(--bg);border:1px solid var(--b);border-radius:9px;padding:3px;gap:2px}
+.nl-view-toggle button{border:none;background:transparent;padding:.4rem .8rem;border-radius:7px;font-size:12px;font-weight:600;color:var(--t3);cursor:pointer;font-family:Inter,sans-serif}
+.nl-view-toggle button.on{background:var(--w);color:var(--t);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+/* tabela de cartões */
+.nl-ctab-th{display:grid;grid-template-columns:1.6fr 100px 110px 90px 1fr 60px 60px;gap:12px;padding:.55rem .9rem;background:rgba(244,246,249,.8);border-bottom:2px solid var(--b2);align-items:center}
+.nl-ctab-th span{font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.04em}
+.nl-ctab-tr{display:grid;grid-template-columns:1.6fr 100px 110px 90px 1fr 60px 60px;gap:12px;padding:.65rem .9rem;align-items:center;border-bottom:1px solid var(--b);cursor:pointer;transition:background .15s}
+.nl-ctab-tr:last-child{border-bottom:none}
+.nl-ctab-tr:hover{background:var(--bg)}
+@media(max-width:820px){.nl-ctab-th{display:none}.nl-ctab-tr{grid-template-columns:1fr;gap:6px;padding:.8rem .9rem}}
 /* saldo projetado — verde/vermelho acinzentado (mais neutro) */
 :root{--g2:#5f8874;--r2:#a97169}
 @media(prefers-color-scheme:dark){:root{--g2:#7fae98;--r2:#cd9089}}
@@ -605,6 +616,7 @@ const CARTOES_DEFAULT=[
   {id:'btg',nome:'Banco BTG',cor:'#000000',emoji:'⚫',fechamento:21,vencimento:24},
   {id:'mp_vero',nome:'M. Pago Verônica',cor:'#009ee3',emoji:'🔷',fechamento:9,vencimento:14},
   {id:'mp_diego',nome:'M. Pago Diego',cor:'#0070c0',emoji:'🔹',fechamento:29,vencimento:4},
+  {id:'carrefour',nome:'Banco Carrefour',cor:'#00a651',emoji:'🟢',fechamento:16,vencimento:21},
 ];
 function getCartoes(){if(!D['_cartoes']||!D['_cartoes'].length)D['_cartoes']=JSON.parse(JSON.stringify(CARTOES_DEFAULT));return D['_cartoes'];}
 function _cardNome(cid){const c=(D._cartoes||[]).find(x=>x.id===cid);return c?c.nome:cid;}
@@ -2661,36 +2673,49 @@ function renderCartoesDesktopNovo(){
   `;
   // (gráfico de gastos é anexado abaixo dos cartões — ver mais adiante)
 
-  // CARDS DOS CARTÕES (barra de utilização, cor funcional)
-  const cardsSection=document.createElement('div');
-  cardsSection.className='cartoes-grid';
+  // CARDS OU TABELA DOS CARTÕES (barra de utilização, cor funcional)
   const MNa=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-  cartoes.forEach(cartao=>{
-    const fatura=getFatura(cartao.id);
-    const st=faturaStatus(cartao.id);
-    const _fmLbl='fatura de '+MNa[+mes.slice(5)-1]+'/'+mes.slice(2,4);
-    const limite=getLimite(cartao.id);
-    const percentual=limite>0?(fatura/limite*100):0;
-    const corBg=cartao.cor||'var(--g)';
-    const uc=percentual>=70?'var(--r)':percentual>=30?'var(--a)':'var(--g)';
-    const icon=st.k==='pago'?'✓':(st.k==='vencida'||st.k==='hoje')?'⏰':st.k==='agendado'?'🗓️':st.k==='nenhuma'?'':'●';
-    const cardEl=document.createElement('div');
-    cardEl.className='card';
-    cardEl.style.cursor='pointer';
-    cardEl.onclick=()=>showCartaoDetalhes(cartao);
-    cardEl.innerHTML=
-      '<div style="display:flex;align-items:center;gap:11px;margin-bottom:13px">'
-      +'<div style="width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:15px;flex-shrink:0;background:'+corBg+'">'+(cartao.emoji||(cartao.nome||'C').slice(0,1))+'</div>'
-      +'<div style="min-width:0;flex:1"><div style="font-size:14px;font-weight:700;color:var(--t);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(cartao.nome||'Cartão')+'</div><div style="font-size:11.5px;color:var(--t3);font-weight:500">'+_fmLbl+'</div></div>'
-      +'</div>'
-      +'<div class="tnum" style="font-size:23px;font-weight:800;letter-spacing:-.02em;color:var(--t)">'+fv(fatura)+'</div>'
-      +'<div style="margin-top:7px"><span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:'+st.cor+';background:color-mix(in srgb,'+st.cor+' 13%, transparent);padding:3px 9px;border-radius:20px">'+(icon?icon+' ':'')+st.lbl+'</span></div>'
-      +'<div class="nl-util" style="margin-top:13px"><div class="track"><span class="fill" style="width:'+Math.min(100,percentual)+'%;background:'+uc+'"></span></div>'
-      +'<div class="info"><span>'+(limite>0?percentual.toFixed(0)+'% do limite':'sem limite')+'</span><span>'+(limite>0?fv(limite):'')+'</span></div></div>'
-      +'<div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--t3);font-weight:500;margin-top:11px;padding-top:9px;border-top:1px solid var(--b)"><span>Fecha dia '+(cartao.fechamento||'—')+'</span><span>Vence dia '+(cartao.vencimento||'—')+'</span></div>';
-    cardsSection.appendChild(cardEl);
-  });
-  container.appendChild(cardsSection);
+  const cartoesView=localStorage.getItem('nl-cartoes-view')||'cards';
+  const viewToggleDiv=document.createElement('div');
+  viewToggleDiv.style.cssText='display:flex;justify-content:flex-end;margin-bottom:.6rem';
+  viewToggleDiv.innerHTML='<div class="nl-view-toggle">'
+    +'<button class="'+(cartoesView==='cards'?'on':'')+'" onclick="setCartoesView(\'cards\')" title="Ver em cards">▦ Cards</button>'
+    +'<button class="'+(cartoesView==='tabela'?'on':'')+'" onclick="setCartoesView(\'tabela\')" title="Ver em tabela">☰ Tabela</button>'
+    +'</div>';
+  container.appendChild(viewToggleDiv);
+
+  if(cartoesView==='tabela'){
+    container.appendChild(buildCartoesTabela(cartoes,MNa));
+  }else{
+    const cardsSection=document.createElement('div');
+    cardsSection.className='cartoes-grid';
+    cartoes.forEach(cartao=>{
+      const fatura=getFatura(cartao.id);
+      const st=faturaStatus(cartao.id);
+      const _fmLbl='fatura de '+MNa[+mes.slice(5)-1]+'/'+mes.slice(2,4);
+      const limite=getLimite(cartao.id);
+      const percentual=limite>0?(fatura/limite*100):0;
+      const corBg=cartao.cor||'var(--g)';
+      const uc=percentual>=70?'var(--r)':percentual>=30?'var(--a)':'var(--g)';
+      const icon=st.k==='pago'?'✓':(st.k==='vencida'||st.k==='hoje')?'⏰':st.k==='agendado'?'🗓️':st.k==='nenhuma'?'':'●';
+      const cardEl=document.createElement('div');
+      cardEl.className='card';
+      cardEl.style.cursor='pointer';
+      cardEl.onclick=()=>showCartaoDetalhes(cartao);
+      cardEl.innerHTML=
+        '<div style="display:flex;align-items:center;gap:11px;margin-bottom:13px">'
+        +'<div style="width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:15px;flex-shrink:0;background:'+corBg+'">'+(cartao.emoji||(cartao.nome||'C').slice(0,1))+'</div>'
+        +'<div style="min-width:0;flex:1"><div style="font-size:14px;font-weight:700;color:var(--t);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(cartao.nome||'Cartão')+'</div><div style="font-size:11.5px;color:var(--t3);font-weight:500">'+_fmLbl+'</div></div>'
+        +'</div>'
+        +'<div class="tnum" style="font-size:23px;font-weight:800;letter-spacing:-.02em;color:var(--t)">'+fv(fatura)+'</div>'
+        +'<div style="margin-top:7px"><span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:'+st.cor+';background:color-mix(in srgb,'+st.cor+' 13%, transparent);padding:3px 9px;border-radius:20px">'+(icon?icon+' ':'')+st.lbl+'</span></div>'
+        +'<div class="nl-util" style="margin-top:13px"><div class="track"><span class="fill" style="width:'+Math.min(100,percentual)+'%;background:'+uc+'"></span></div>'
+        +'<div class="info"><span>'+(limite>0?percentual.toFixed(0)+'% do limite':'sem limite')+'</span><span>'+(limite>0?fv(limite):'')+'</span></div></div>'
+        +'<div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--t3);font-weight:500;margin-top:11px;padding-top:9px;border-top:1px solid var(--b)"><span>Fecha dia '+(cartao.fechamento||'—')+'</span><span>Vence dia '+(cartao.vencimento||'—')+'</span></div>';
+      cardsSection.appendChild(cardEl);
+    });
+    container.appendChild(cardsSection);
+  }
   container.appendChild(graficoSection);
 
   // C4/C5 Evolução + Projeção da fatura
@@ -2704,6 +2729,34 @@ function renderCartoesDesktopNovo(){
   renderCartaoPizza();
   renderGastosCategoria();
   renderEvolucaoFatura();
+}
+function setCartoesView(v){localStorage.setItem('nl-cartoes-view',v);renderCartoesDesktopNovo();}
+function showCartaoDetalhesById(cid){const c=getCartoes().find(x=>x.id===cid);if(c)showCartaoDetalhes(c);}
+function buildCartoesTabela(cartoes,MNa){
+  const wrap=document.createElement('div');
+  wrap.className='card';
+  wrap.style.cssText='padding:0;overflow:hidden;margin:1.1rem 0';
+  let html='<div class="nl-ctab-th"><span>Cartão</span><span style="text-align:right">Fatura</span><span>Status</span><span style="text-align:right">Limite</span><span>Uso</span><span style="text-align:center">Fecha</span><span style="text-align:center">Vence</span></div>';
+  cartoes.forEach(cartao=>{
+    const fatura=getFatura(cartao.id);
+    const st=faturaStatus(cartao.id);
+    const limite=getLimite(cartao.id);
+    const percentual=limite>0?(fatura/limite*100):0;
+    const corBg=cartao.cor||'var(--g)';
+    const uc=percentual>=70?'var(--r)':percentual>=30?'var(--a)':'var(--g)';
+    const icon=st.k==='pago'?'✓':(st.k==='vencida'||st.k==='hoje')?'⏰':st.k==='agendado'?'🗓️':st.k==='nenhuma'?'':'●';
+    html+='<div class="nl-ctab-tr" onclick="showCartaoDetalhesById(\''+cartao.id+'\')">'
+      +'<span style="display:flex;align-items:center;gap:9px;min-width:0"><span style="width:26px;height:26px;border-radius:7px;display:grid;place-items:center;color:#fff;font-size:12px;flex-shrink:0;background:'+corBg+'">'+(cartao.emoji||(cartao.nome||'C').slice(0,1))+'</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;color:var(--t)">'+(cartao.nome||'Cartão')+'</span></span>'
+      +'<span class="tnum" style="text-align:right;font-weight:700;color:var(--t)">'+fv(fatura)+'</span>'
+      +'<span><span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;color:'+st.cor+';background:color-mix(in srgb,'+st.cor+' 13%, transparent);padding:2px 8px;border-radius:20px;white-space:nowrap">'+(icon?icon+' ':'')+st.lbl+'</span></span>'
+      +'<span class="tnum" style="text-align:right;color:var(--t2)">'+(limite>0?fv(limite):'—')+'</span>'
+      +'<span style="display:flex;align-items:center;gap:6px"><span class="nl-util" style="flex:1;min-width:36px"><span class="track" style="height:6px;display:block;border-radius:5px;background:var(--bg);overflow:hidden"><span class="fill" style="display:block;height:100%;border-radius:5px;width:'+Math.min(100,percentual)+'%;background:'+uc+'"></span></span></span><span style="font-size:11px;color:var(--t3);white-space:nowrap">'+(limite>0?percentual.toFixed(0)+'%':'—')+'</span></span>'
+      +'<span style="text-align:center;color:var(--t2);font-size:12px">'+(cartao.fechamento||'—')+'</span>'
+      +'<span style="text-align:center;color:var(--t2);font-size:12px">'+(cartao.vencimento||'—')+'</span>'
+      +'</div>';
+  });
+  wrap.innerHTML=html;
+  return wrap;
 }
 /* ── Gastos por categoria (itens importados das faturas) ── */
 function renderGastosCategoria(){
