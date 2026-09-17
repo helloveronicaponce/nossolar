@@ -443,6 +443,15 @@ button:focus-visible,a:focus-visible,input:focus-visible,.pill:focus-visible,.de
 .nl-ctab-pay{border:1.5px solid var(--g);color:var(--g);background:var(--gl);font-size:10.5px;font-weight:700;padding:4px 8px;border-radius:20px;cursor:pointer;white-space:nowrap;font-family:Inter,sans-serif}
 .nl-ctab-pay:hover{background:var(--g);color:#fff}
 @media(max-width:820px){.nl-ctab-th{display:none}.nl-ctab-tr{grid-template-columns:1fr;gap:6px;padding:.8rem .9rem}}
+/* tabela de contas */
+.nl-ctas-th{display:grid;grid-template-columns:1.8fr 160px 90px;gap:12px;padding:.55rem .9rem;background:rgba(244,246,249,.8);border-bottom:2px solid var(--b2);align-items:center}
+.nl-ctas-th span{font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.04em}
+.nl-ctas-tr{display:grid;grid-template-columns:1.8fr 160px 90px;gap:12px;padding:.65rem .9rem;align-items:center;border-bottom:1px solid var(--b);transition:background .15s}
+.nl-ctas-tr:last-child{border-bottom:none}
+.nl-ctas-tr:hover{background:var(--bg)}
+.nl-ctas-saldo{cursor:text;border-radius:5px;padding:2px 4px;margin:-2px -4px}
+.nl-ctas-saldo:hover{background:var(--gl)}
+@media(max-width:820px){.nl-ctas-th{display:none}.nl-ctas-tr{grid-template-columns:1fr;gap:6px;padding:.8rem .9rem}}
 /* saldo projetado — verde/vermelho acinzentado (mais neutro) */
 :root{--g2:#5f8874;--r2:#a97169}
 @media(prefers-color-scheme:dark){:root{--g2:#7fae98;--r2:#cd9089}}
@@ -3592,16 +3601,28 @@ function renderContasPage(){
     +'</div></div>';
   container.appendChild(topDiv);
 
+  const contasView=localStorage.getItem('nl-contas-view')||'cards';
   const actionsDiv=document.createElement('div');
-  actionsDiv.style.cssText='display:flex;justify-content:flex-end;margin:1rem 0 .6rem';
-  actionsDiv.innerHTML='<button onclick="novaConta()" style="border:none;background:var(--g);color:#fff;padding:.5rem .9rem;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">+ Nova conta</button>';
+  actionsDiv.style.cssText='display:flex;justify-content:space-between;align-items:center;margin:1rem 0 .6rem;gap:.6rem';
+  actionsDiv.innerHTML=
+    '<div class="nl-view-toggle">'
+    +'<button class="'+(contasView==='cards'?'on':'')+'" onclick="setContasView(\'cards\')" title="Ver em cards">▦ Cards</button>'
+    +'<button class="'+(contasView==='tabela'?'on':'')+'" onclick="setContasView(\'tabela\')" title="Ver em tabela">☰ Tabela</button>'
+    +'</div>'
+    +'<button onclick="novaConta()" style="border:none;background:var(--g);color:#fff;padding:.5rem .9rem;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">+ Nova conta</button>';
   container.appendChild(actionsDiv);
 
-  const grid=document.createElement('div');
-  grid.className='contas-grid';
   if(!list.length){
-    grid.innerHTML='<div class="card" style="text-align:center;padding:3rem;color:var(--t3);grid-column:1/-1">Nenhuma conta cadastrada ainda. Clique em "+ Nova conta".</div>';
+    const empty=document.createElement('div');
+    empty.className='card';
+    empty.style.cssText='text-align:center;padding:3rem;color:var(--t3)';
+    empty.textContent='Nenhuma conta cadastrada ainda. Clique em "+ Nova conta".';
+    container.appendChild(empty);
+  }else if(contasView==='tabela'){
+    container.appendChild(buildContasTabela(list));
   }else{
+    const grid=document.createElement('div');
+    grid.className='contas-grid';
     list.forEach(c=>{
       const card=document.createElement('div');
       card.className='card';
@@ -3613,8 +3634,33 @@ function renderContasPage(){
         +'<div class="tnum" style="font-size:22px;font-weight:800;letter-spacing:-.02em;color:'+((c.saldo||0)>=0?'var(--g)':'var(--r)')+'">'+fv(c.saldo||0)+'</div>';
       grid.appendChild(card);
     });
+    container.appendChild(grid);
   }
-  container.appendChild(grid);
+}
+function setContasView(v){localStorage.setItem('nl-contas-view',v);renderContasPage();}
+function buildContasTabela(list){
+  const wrap=document.createElement('div');
+  wrap.className='card';
+  wrap.style.cssText='padding:0;overflow:hidden;margin:1.1rem 0';
+  let html='<div class="nl-ctas-th"><span>Conta</span><span style="text-align:right">Saldo</span><span></span></div>';
+  list.forEach(c=>{
+    html+='<div class="nl-ctas-tr">'
+      +'<span style="display:flex;align-items:center;gap:9px;min-width:0"><span style="font-size:18px;flex-shrink:0">'+(c.emoji||'🏦')+'</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;color:var(--t)">'+(c.nome||'Conta')+'</span></span>'
+      +'<span class="tnum nl-ctas-saldo" title="Clique para editar o saldo" onclick="editContaSaldo(\''+c.id+'\',this)" style="text-align:right;font-weight:700;color:'+((c.saldo||0)>=0?'var(--g)':'var(--r)')+'">'+fv(c.saldo||0)+' <span style="font-size:8px;opacity:.4">✎</span></span>'
+      +'<span style="display:flex;gap:.5rem;justify-content:flex-end"><button onclick="editarConta(\''+c.id+'\')" style="border:none;background:none;cursor:pointer;font-size:12px;opacity:.55" title="Editar nome/emoji">✎</button><button onclick="removeConta(\''+c.id+'\')" style="border:none;background:none;cursor:pointer;font-size:12px;opacity:.55;color:var(--r)" title="Remover">✕</button></span>'
+      +'</div>';
+  });
+  wrap.innerHTML=html;
+  return wrap;
+}
+function editContaSaldo(cid,el){
+  if(el.querySelector('input'))return;
+  const c=(D._contas||[]).find(x=>x.id===cid);if(!c)return;
+  const inp=document.createElement('input');inp.type='number';inp.value=(c.saldo||0).toFixed(2);
+  inp.step='0.01';inp.className='cc-inp';
+  el.innerHTML='';el.appendChild(inp);inp.focus();inp.select();
+  const commit=()=>{const v=parseFloat(inp.value);if(!isNaN(v)){c.saldo=+v.toFixed(2);saveData();}reRender();};
+  inp.addEventListener('blur',commit);inp.addEventListener('keydown',ev=>{if(ev.key==='Enter')inp.blur();if(ev.key==='Escape')reRender();});inp.addEventListener('click',ev=>ev.stopPropagation());
 }
 
 /* ── V7 barra de progresso das metas ── */
