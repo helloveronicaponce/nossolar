@@ -426,6 +426,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,.pill:focus-visible,.de
 /* grade de cartões: 4 por linha (2 linhas p/ 8 cartões) */
 .cartoes-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.7rem;margin:1.1rem 0}
 @media(max-width:820px){.cartoes-grid{grid-template-columns:repeat(2,1fr)}}
+.contas-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.7rem;margin:1.1rem 0}
+@media(max-width:820px){.contas-grid{grid-template-columns:repeat(2,1fr)}}
 /* toggle cards/tabela da aba Cartões */
 .nl-view-toggle{display:inline-flex;background:var(--bg);border:1px solid var(--b);border-radius:9px;padding:3px;gap:2px}
 .nl-view-toggle button{border:none;background:transparent;padding:.4rem .8rem;border-radius:7px;font-size:12px;font-weight:600;color:var(--t3);cursor:pointer;font-family:Inter,sans-serif}
@@ -510,6 +512,7 @@ body.dark-mode{--g2:#7fae98;--r2:#cd9089}
 <!-- DESKTOP TABS NAV -->
 <div class="desktop-tabs visible" id="desktop-tabs" role="tablist" aria-label="Navegação principal">
   <button class="desktop-tab active" data-page="lancamentos" data-tooltip="Visualizar e gerenciar lançamentos" onclick="switchPage('lancamentos')" role="tab" aria-selected="true" aria-controls="page-lancamentos" id="tab-lancamentos">Lançamentos</button>
+  <button class="desktop-tab" data-page="contas" data-tooltip="Saldos das contas bancárias" onclick="switchPage('contas')" role="tab" aria-selected="false" aria-controls="page-contas" id="tab-contas">Contas</button>
   <button class="desktop-tab" data-page="cartoes" data-tooltip="Consultar saldos e limites dos cartões" onclick="switchPage('cartoes')" role="tab" aria-selected="false" aria-controls="page-cartoes" id="tab-cartoes">Cartões</button>
   <button class="desktop-tab" data-page="visao-geral" data-tooltip="Ver gráficos e resumo financeiro" onclick="switchPage('visao-geral')" role="tab" aria-selected="false" aria-controls="page-visao-geral" id="tab-visao-geral">Visão Geral</button>
   <button class="desktop-tab" data-page="patrimonio" data-tooltip="Metas, dívidas e investimentos" onclick="switchPage('patrimonio')" role="tab" aria-selected="false" aria-controls="page-patrimonio" id="tab-patrimonio">Patrimônio</button>
@@ -518,6 +521,10 @@ body.dark-mode{--g2:#7fae98;--r2:#cd9089}
 <!-- PÁGINA 1: LANÇAMENTOS -->
 <div class="page-container active" id="page-lancamentos" role="tabpanel" aria-labelledby="tab-lancamentos"></div>
 <!-- FIM LANÇAMENTOS -->
+
+<!-- PÁGINA 1B: CONTAS -->
+<div class="page-container" id="page-contas" role="tabpanel" aria-labelledby="tab-contas"></div>
+<!-- FIM CONTAS -->
 
 <!-- PÁGINA 2: CARTÕES -->
 <div class="page-container" id="page-cartoes" role="tabpanel" aria-labelledby="tab-cartoes"></div>
@@ -1045,8 +1052,7 @@ function render(){
   const pOut=all.filter(r=>r.tipo==='out'&&r.status==='pago').reduce((s,r)=>s+r.valor,0);
   const pIn=all.filter(r=>r.tipo==='in'&&r.status==='pago').reduce((s,r)=>s+r.valor,0);
   const si=getSI(mes);const metaM=D[mes+'_meta']||{};
-  const sAtualCalc=si+pIn-pOut;
-  const sAtual=metaM.saldoInicialAjustado!==undefined?metaM.saldoInicialAjustado+pIn-pOut:metaM.saldoAtualManual!==undefined?metaM.saldoAtualManual:sAtualCalc;
+  const sAtual=saldoAtualMes();
   // Saldo final = saldo atual + pendentes (projeção)
   const pendIn=all.filter(r=>r.tipo==='in'&&r.status!=='pago').reduce((s,r)=>s+r.valor,0);
   const pendOut=all.filter(r=>r.tipo==='out'&&r.status!=='pago').reduce((s,r)=>s+r.valor,0);
@@ -2106,7 +2112,9 @@ function bulkStatus(status){if(!selIds.size)return;const cnt=selIds.size;if(!D[m
 
 /* ── EDIT SALDO ── */
 function editSaldo(e,elId){
-  e.stopPropagation();const el=document.getElementById(elId||'svd');if(!el||el.querySelector('input'))return;
+  e.stopPropagation();
+  if(_saldoDeContas()){switchPage('contas');toast('Saldo Atual = soma das contas. Ajuste os valores aqui ✏️');return;}
+  const el=document.getElementById(elId||'svd');if(!el||el.querySelector('input'))return;
   const all=rows();const pOut=all.filter(r=>r.tipo==='out'&&r.status==='pago').reduce((s,r)=>s+r.valor,0);
   const pIn=all.filter(r=>r.tipo==='in'&&r.status==='pago').reduce((s,r)=>s+r.valor,0);
   const metaAtual=(D[mes+'_meta']||{});
@@ -2376,6 +2384,8 @@ function switchPage(page){
     try{
       if(page==='lancamentos'){
         renderLancamentosDesktop();
+      } else if(page==='contas'){
+        renderContasPage();
       } else if(page==='cartoes'){
         renderCartoesDesktopNovo();
         checkCartaoAlerts();
@@ -3560,10 +3570,52 @@ function _contaModal(id){
   const c=(D._contas||[]).find(x=>x.id===id)||{};
   _formModal(id?'Editar Conta':'Nova Conta',[
     {label:'Nome',key:'nome',type:'text',value:c.nome||'',ph:'ex: Itaú, Nubank, Caixinha'},
+    {label:'Emoji',key:'emoji',type:'text',value:c.emoji||'🏦'},
     {label:'Saldo (R$)',key:'saldo',type:'number',value:c.saldo||0}
-  ],vals=>{ if(!D._contas)D._contas=[]; if(id){Object.assign(c,vals);}else{vals.id='cta_'+Date.now();D._contas.push(vals);} saveData();renderVisaoGeralDesktopNovo();toast('Conta salva'); });
+  ],vals=>{ if(!D._contas)D._contas=[]; if(id){Object.assign(c,vals);}else{vals.id='cta_'+Date.now();D._contas.push(vals);} saveData();reRender();toast('Conta salva'); });
 }
-function removeConta(id){ if(confirm('Remover esta conta?')){D._contas=(D._contas||[]).filter(x=>x.id!==id);saveData();renderVisaoGeralDesktopNovo();} }
+function removeConta(id){ if(confirm('Remover esta conta?')){D._contas=(D._contas||[]).filter(x=>x.id!==id);saveData();reRender();} }
+/* ── PÁGINA CONTAS (aba dedicada) ── */
+function renderContasPage(){
+  const container=document.getElementById('page-contas');
+  if(!container)return;
+  container.innerHTML='';
+  const list=D._contas||[];
+  const total=list.reduce((s,c)=>s+(c.saldo||0),0);
+
+  const topDiv=document.createElement('div');
+  topDiv.innerHTML=
+    '<div class="nl-hero"><div class="l">'
+    +'<div class="nl-eyebrow">Total em contas</div>'
+    +'<div class="nl-big tnum">'+fv(total)+'</div>'
+    +'<span class="nl-pill '+(total>=0?'ok':'bad')+'"><span class="dot"></span> '+list.length+' conta'+(list.length!==1?'s':'')+'</span>'
+    +'</div></div>';
+  container.appendChild(topDiv);
+
+  const actionsDiv=document.createElement('div');
+  actionsDiv.style.cssText='display:flex;justify-content:flex-end;margin:1rem 0 .6rem';
+  actionsDiv.innerHTML='<button onclick="novaConta()" style="border:none;background:var(--g);color:#fff;padding:.5rem .9rem;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">+ Nova conta</button>';
+  container.appendChild(actionsDiv);
+
+  const grid=document.createElement('div');
+  grid.className='contas-grid';
+  if(!list.length){
+    grid.innerHTML='<div class="card" style="text-align:center;padding:3rem;color:var(--t3);grid-column:1/-1">Nenhuma conta cadastrada ainda. Clique em "+ Nova conta".</div>';
+  }else{
+    list.forEach(c=>{
+      const card=document.createElement('div');
+      card.className='card';
+      card.innerHTML=
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;margin-bottom:.75rem">'
+        +'<div style="display:flex;align-items:center;gap:9px;min-width:0"><span style="font-size:22px;flex-shrink:0">'+(c.emoji||'🏦')+'</span><span style="font-weight:700;font-size:14px;color:var(--t);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(c.nome||'Conta')+'</span></div>'
+        +'<div style="display:flex;gap:.35rem;flex-shrink:0"><button onclick="editarConta(\''+c.id+'\')" style="border:none;background:none;cursor:pointer;font-size:12px;opacity:.55" title="Editar">✎</button><button onclick="removeConta(\''+c.id+'\')" style="border:none;background:none;cursor:pointer;font-size:12px;opacity:.55;color:var(--r)" title="Remover">✕</button></div>'
+        +'</div>'
+        +'<div class="tnum" style="font-size:22px;font-weight:800;letter-spacing:-.02em;color:'+((c.saldo||0)>=0?'var(--g)':'var(--r)')+'">'+fv(c.saldo||0)+'</div>';
+      grid.appendChild(card);
+    });
+  }
+  container.appendChild(grid);
+}
 
 /* ── V7 barra de progresso das metas ── */
 function _metaProgresso(key){ const d=_metaDiv(key); if(!d)return ''; const pt=_divTotal(d),pp=_divPagas(d); const pct=pt>0?Math.round(pp/pt*100):0; return `<div style="margin-top:.6rem"><div style="display:flex;justify-content:space-between;font-size:10px;color:var(--t3);margin-bottom:3px"><span>${pp} de ${pt} parcelas</span><span style="font-weight:700">${pct}%</span></div><div style="height:6px;background:var(--bg);border-radius:99px;overflow:hidden"><div style="height:100%;width:${pct}%;background:var(--g);border-radius:99px"></div></div></div>`; }
@@ -3611,7 +3663,15 @@ function _divParcela(d){ return (d.parcela_mensal!=null?d.parcela_mensal:d.parce
 function _divPagas(d){ return (d.parcelas_pagas!=null?d.parcelas_pagas:d.parcelasPagas)||0; }
 function _divTotal(d){ return (d.total_parcelas!=null?d.total_parcelas:d.parcelasTotal)||0; }
 function totalDividasRestante(){ return _dividasArr().reduce((s,d)=>s+Math.max(0,(_divTotal(d)-_divPagas(d)))*_divParcela(d),0); }
+function totalContas(){return (D._contas||[]).reduce((s,c)=>s+(c.saldo||0),0);}
+// true quando o "Saldo Atual" do mês corrente deve vir da soma das contas cadastradas
+// (só se aplica ao mês de HOJE — meses passados/futuros continuam usando a projeção por lançamentos)
+function _saldoDeContas(){
+  const hoje=new Date();const mesHoje=hoje.getFullYear()+'-'+String(hoje.getMonth()+1).padStart(2,'0');
+  return mes===mesHoje&&D._contas&&D._contas.length>0;
+}
 function saldoAtualMes(){
+  if(_saldoDeContas())return totalContas();
   const meta=D[mes+'_meta']||{};
   const r=rows();
   const pIn=r.filter(x=>x.tipo==='in'&&x.status==='pago').reduce((a,x)=>a+x.valor,0);
