@@ -407,7 +407,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,.pill:focus-visible,.de
 .nl-ch .sub{font-weight:500;color:var(--t3);font-size:12px;margin-left:6px}
 @media(max-width:820px){.nl-chips,.nl-grid3,.nl-grid2{grid-template-columns:1fr}.nl-spark{width:100%}}
 /* coluna compacta centralizada (igual ao layout sugerido) */
-#page-visao-geral,#page-cartoes,#page-patrimonio{max-width:980px}
+#page-visao-geral,#page-cartoes,#page-patrimonio,#page-contas{max-width:980px}
 /* cabeçalho leve — estilo do mockup (fundo claro, texto escuro) */
 .top{background:var(--w);border-bottom:1px solid var(--b);box-shadow:0 1px 3px rgba(0,0,0,.04)}
 .logo{color:var(--t)}
@@ -443,15 +443,16 @@ button:focus-visible,a:focus-visible,input:focus-visible,.pill:focus-visible,.de
 .nl-ctab-pay{border:1.5px solid var(--g);color:var(--g);background:var(--gl);font-size:10.5px;font-weight:700;padding:4px 8px;border-radius:20px;cursor:pointer;white-space:nowrap;font-family:Inter,sans-serif}
 .nl-ctab-pay:hover{background:var(--g);color:#fff}
 @media(max-width:820px){.nl-ctab-th{display:none}.nl-ctab-tr{grid-template-columns:1fr;gap:6px;padding:.8rem .9rem}}
-/* tabela de contas */
-.nl-ctas-th{display:grid;grid-template-columns:1.8fr 160px 90px;gap:12px;padding:.55rem .9rem;background:rgba(244,246,249,.8);border-bottom:2px solid var(--b2);align-items:center}
+/* tabela de contas (largura contida — não esticar em telas largas) */
+.nl-ctas-wrap{max-width:560px}
+.nl-ctas-th{display:grid;grid-template-columns:1fr 130px 70px;gap:10px;padding:.5rem .8rem;background:rgba(244,246,249,.8);border-bottom:2px solid var(--b2);align-items:center}
 .nl-ctas-th span{font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.04em}
-.nl-ctas-tr{display:grid;grid-template-columns:1.8fr 160px 90px;gap:12px;padding:.65rem .9rem;align-items:center;border-bottom:1px solid var(--b);transition:background .15s}
+.nl-ctas-tr{display:grid;grid-template-columns:1fr 130px 70px;gap:10px;padding:.55rem .8rem;align-items:center;border-bottom:1px solid var(--b);transition:background .15s}
 .nl-ctas-tr:last-child{border-bottom:none}
 .nl-ctas-tr:hover{background:var(--bg)}
 .nl-ctas-saldo{cursor:text;border-radius:5px;padding:2px 4px;margin:-2px -4px}
 .nl-ctas-saldo:hover{background:var(--gl)}
-@media(max-width:820px){.nl-ctas-th{display:none}.nl-ctas-tr{grid-template-columns:1fr;gap:6px;padding:.8rem .9rem}}
+@media(max-width:820px){.nl-ctas-wrap{max-width:none}.nl-ctas-th{display:none}.nl-ctas-tr{grid-template-columns:1fr;gap:6px;padding:.8rem .9rem}}
 /* saldo projetado — verde/vermelho acinzentado (mais neutro) */
 :root{--g2:#5f8874;--r2:#a97169}
 @media(prefers-color-scheme:dark){:root{--g2:#7fae98;--r2:#cd9089}}
@@ -3601,7 +3602,7 @@ function renderContasPage(){
     +'</div></div>';
   container.appendChild(topDiv);
 
-  const contasView=localStorage.getItem('nl-contas-view')||'cards';
+  const contasView=localStorage.getItem('nl-contas-view')||'tabela';
   const actionsDiv=document.createElement('div');
   actionsDiv.style.cssText='display:flex;justify-content:space-between;align-items:center;margin:1rem 0 .6rem;gap:.6rem';
   actionsDiv.innerHTML=
@@ -3640,7 +3641,7 @@ function renderContasPage(){
 function setContasView(v){localStorage.setItem('nl-contas-view',v);renderContasPage();}
 function buildContasTabela(list){
   const wrap=document.createElement('div');
-  wrap.className='card';
+  wrap.className='card nl-ctas-wrap';
   wrap.style.cssText='padding:0;overflow:hidden;margin:1.1rem 0';
   let html='<div class="nl-ctas-th"><span>Conta</span><span style="text-align:right">Saldo</span><span></span></div>';
   list.forEach(c=>{
