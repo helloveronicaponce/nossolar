@@ -657,6 +657,7 @@ function faturaStatus(cid){
   const fat=getFatura(cid),l=_ccLanc(cid,mes);
   if(fat<=0&&!l)return{k:'nenhuma',lbl:'sem fatura lançada',cor:'var(--t3)'};
   const st=l?l.status:'pendente';
+  if(l&&l._estimativa&&st!=='pago')return{k:'estimativa',lbl:'estimativa (não confirmada)',cor:'#8b5cf6'};
   if(st==='pago')return{k:'pago',lbl:'paga',cor:'var(--g)'};
   if(st==='agendado')return{k:'agendado',lbl:'agendada',cor:'#3742FA'};
   const c=getCartoes().find(x=>x.id===cid)||{};const venc=parseInt(c.vencimento)||0;
@@ -1849,6 +1850,7 @@ function toggleFaturaPagoTabela(cid){
   const jaEstavaPago=D[mes][idx].status==='pago';
   D[mes][idx].status=jaEstavaPago?'pendente':'pago';
   D[mes][idx].pag=jaEstavaPago?null:today();
+  if(!jaEstavaPago)delete D[mes][idx]._estimativa; // confirmada como paga: deixa de ser estimativa
   saveData();reRender();
   toast(jaEstavaPago?'Fatura '+c.nome+' voltou para pendente':'Fatura '+c.nome+' marcada como paga ✅');
 }
