@@ -442,8 +442,10 @@ button:focus-visible,a:focus-visible,input:focus-visible,.pill:focus-visible,.de
 .nl-ctab-tr:hover{background:var(--bg)}
 .nl-ctab-fatura{cursor:text;border-radius:5px;padding:2px 4px;margin:-2px -4px}
 .nl-ctab-fatura:hover{background:var(--gl)}
-.nl-ctab-pay{border:1.5px solid var(--g);color:var(--g);background:var(--gl);font-size:10.5px;font-weight:700;padding:4px 8px;border-radius:20px;cursor:pointer;white-space:nowrap;font-family:Inter,sans-serif}
-.nl-ctab-pay:hover{background:var(--g);color:#fff}
+.nl-ctab-pay{border:1.5px solid var(--b2);color:var(--t3);background:var(--bg);font-size:10.5px;font-weight:700;padding:4px 8px;border-radius:20px;cursor:pointer;white-space:nowrap;font-family:Inter,sans-serif;transition:background .15s,border-color .15s,color .15s}
+.nl-ctab-pay:hover{background:var(--b2);color:var(--t2)}
+.nl-ctab-pay.on{border-color:var(--g);color:var(--g);background:var(--gl)}
+.nl-ctab-pay.on:hover{background:var(--g);color:#fff}
 @media(max-width:820px){.nl-ctab-th{display:none}.nl-ctab-tr{grid-template-columns:1fr;gap:6px;padding:.8rem .9rem}}
 /* tabela de contas */
 .nl-ctas-th{display:grid;grid-template-columns:1fr 130px 70px;gap:10px;padding:.5rem .8rem;background:rgba(244,246,249,.8);border-bottom:2px solid var(--b2);align-items:center}
@@ -1825,6 +1827,19 @@ function pagarFaturaCartao(cid){
   else{syncCartaoLancamento(c);const i=D[mes].findIndex(r=>r.id===lancId);if(i>=0){D[mes][i].status='pago';D[mes][i].pag=today();}}
   saveData();reRender();toast('Fatura '+c.nome+' marcada como paga ✅');
 }
+// toggle usado na tabela de Cartões: mesmo botão marca como pago (cinza→verde) e desfaz (verde→cinza)
+function toggleFaturaPagoTabela(cid){
+  const cartoes=getCartoes();const c=cartoes.find(x=>x.id===cid);if(!c)return;
+  const lancId='cc_'+c.id+'_'+mes;if(!D[mes])D[mes]=[];
+  let idx=D[mes].findIndex(r=>r.id===lancId);
+  if(idx<0){syncCartaoLancamento(c);idx=D[mes].findIndex(r=>r.id===lancId);}
+  if(idx<0)return;
+  const jaEstavaPago=D[mes][idx].status==='pago';
+  D[mes][idx].status=jaEstavaPago?'pendente':'pago';
+  D[mes][idx].pag=jaEstavaPago?null:today();
+  saveData();reRender();
+  toast(jaEstavaPago?'Fatura '+c.nome+' voltou para pendente':'Fatura '+c.nome+' marcada como paga ✅');
+}
 
 /* ── STATUS DROPDOWN ── */
 function closeDd(){if(dd){dd.remove();dd=null;}}
@@ -2775,7 +2790,7 @@ function buildCartoesTabela(cartoes,MNa){
       +'<span style="display:flex;align-items:center;gap:6px"><span class="nl-util" style="flex:1;min-width:36px"><span class="track" style="height:6px;display:block;border-radius:5px;background:var(--bg);overflow:hidden"><span class="fill" style="display:block;height:100%;border-radius:5px;width:'+Math.min(100,percentual)+'%;background:'+uc+'"></span></span></span><span style="font-size:11px;color:var(--t3);white-space:nowrap">'+(limite>0?percentual.toFixed(0)+'%':'—')+'</span></span>'
       +'<span style="text-align:center;color:var(--t2);font-size:12px">'+(cartao.fechamento||'—')+'</span>'
       +'<span style="text-align:center;color:var(--t2);font-size:12px">'+(cartao.vencimento||'—')+'</span>'
-      +'<span>'+(st.k==='pago'?'':'<button class="nl-ctab-pay" onclick="event.stopPropagation();pagarFaturaCartao(\''+cartao.id+'\')">✓ Pago</button>')+'</span>'
+      +'<span>'+(st.k==='nenhuma'?'':'<button class="nl-ctab-pay'+(st.k==='pago'?' on':'')+'" onclick="event.stopPropagation();toggleFaturaPagoTabela(\''+cartao.id+'\')">'+(st.k==='pago'?'✓ Pago':'Pago')+'</button>')+'</span>'
       +'</div>';
   });
   wrap.innerHTML=html;
