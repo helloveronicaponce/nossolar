@@ -2774,10 +2774,36 @@ function renderCartoesDesktopNovo(){
   evoSection.innerHTML='<div class="nl-ch">Evolução da fatura total <span class="sub">projeção da próxima em destaque</span></div><div id="evolucao-fatura"></div>';
   container.appendChild(evoSection);
 
+  // Parcelas já contratadas nos próximos meses (vem da planilha "Gestão de Faturas" — NÃO conta como pendência no saldo)
+  const parcFutSection=document.createElement('div');
+  parcFutSection.className='card';
+  parcFutSection.style.cssText='margin-top:1.5rem';
+  parcFutSection.innerHTML='<div class="nl-ch">📋 Parcelas já contratadas <span class="sub">valores certos de compras parceladas anteriores — não inclui gasto novo, não conta no saldo</span></div><div id="parcelas-futuras-cartoes"></div>';
+  container.appendChild(parcFutSection);
+
   renderCartaoGrafico();
   renderCartaoPizza();
   renderGastosCategoria();
   renderEvolucaoFatura();
+  renderParcelasFuturasCartoes();
+}
+function renderParcelasFuturasCartoes(){
+  const el=document.getElementById('parcelas-futuras-cartoes');if(!el)return;
+  const pf=D._faturaParcelasFuturas||{};
+  const cids=Object.keys(pf).filter(cid=>pf[cid]&&Object.values(pf[cid]).some(v=>v>0));
+  if(!cids.length){el.innerHTML='<div style="color:var(--t3);text-align:center;padding:1rem;font-size:13px">Nenhuma parcela futura importada ainda.</div>';return;}
+  const proxMeses=[];let m=mes;for(let i=0;i<6;i++){m=addM(m,1);proxMeses.push(m);}
+  const MNa=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  let html='<div style="display:grid;grid-template-columns:1.3fr repeat('+proxMeses.length+',1fr);gap:8px;font-size:11px;color:var(--t3);font-weight:600;text-transform:uppercase;margin-bottom:.4rem">'
+    +'<span>Cartão</span>'+proxMeses.map(mm=>'<span style="text-align:right">'+MNa[+mm.slice(5)-1]+'/'+mm.slice(2,4)+'</span>').join('')+'</div>';
+  cids.forEach(cid=>{
+    const nome=_cardNome(cid);
+    html+='<div style="display:grid;grid-template-columns:1.3fr repeat('+proxMeses.length+',1fr);gap:8px;padding:.4rem 0;border-top:1px solid var(--b);font-size:12.5px">'
+      +'<span style="font-weight:600;color:var(--t)">'+nome+'</span>'
+      +proxMeses.map(mm=>{const v=(pf[cid]||{})[mm]||0;return '<span style="text-align:right;color:'+(v>0?'var(--t2)':'var(--t3)')+'">'+(v>0?fv(v):'—')+'</span>';}).join('')
+      +'</div>';
+  });
+  el.innerHTML=html;
 }
 function setCartoesView(v){localStorage.setItem('nl-cartoes-view',v);renderCartoesDesktopNovo();}
 function showCartaoDetalhesById(cid){const c=getCartoes().find(x=>x.id===cid);if(c)showCartaoDetalhes(c);}
@@ -3190,7 +3216,7 @@ function renderVisaoGeralDesktopNovo(){
   container.appendChild(wrap);
 
   renderFluxoCaixa();
-  renderGastosCategoria();
+  renderGastosCategoriaGeral();
   renderComparacaoMensal();
   renderInsights();
   renderContas();
@@ -3561,7 +3587,7 @@ function _metaVT(d){ if(!d)return 0; return d.valor_total!=null?d.valor_total:(_
 function _metaAporte(d){ return d?_divParcela(d):0; }
 function _metaPrev(d){ if(!d)return '—'; const rest=Math.max(0,_divTotal(d)-_divPagas(d)); if(rest<=0)return 'quitado'; const _M=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez']; const _p=mes.split('-').map(Number); const _i=(_p[1]-1)+rest; return _M[_i%12]+'/'+(_p[0]+Math.floor(_i/12)); }
 /* ── V2 Gastos por Categoria ── */
-function renderGastosCategoria(){
+function renderGastosCategoriaGeral(){
   const el=document.getElementById('gastos-categoria');if(!el)return;
   const cat={}; rows().filter(x=>x.tipo==='out').forEach(x=>{const c=x.cat||'Outros';cat[c]=(cat[c]||0)+(x.valor||0);});
   const arr=Object.entries(cat).sort((a,b)=>b[1]-a[1]);
