@@ -814,9 +814,6 @@ function renderParcelamentosCard(){
         +'</div>';
     }).join('');
   }
-  if(quitados.length){
-    html+='<div style="font-size:11px;color:var(--t3);margin-top:.2rem">✅ '+quitados.length+' já quitado'+(quitados.length>1?'s':'')+': '+quitados.map(g=>g.desc).join(', ')+'</div>';
-  }
   html+='</div>';
   return html;
 }
@@ -2541,10 +2538,10 @@ function renderLancamentosDesktop(){
   avisosCard.innerHTML='<div class="nl-eyebrow" style="margin-bottom:.75rem">Avisos</div>';
   avisosCard.appendChild(alertsDiv);
   if(topPanel.children[0])colSide.appendChild(topPanel.children[0]); // Saldos
-  const parcelHtml=renderParcelamentosCard();
-  if(parcelHtml){const parcelDiv=document.createElement('div');parcelDiv.innerHTML=parcelHtml;colSide.appendChild(parcelDiv.firstChild);}
   colSide.appendChild(avisosCard);
   while(topPanel.children.length)colSide.appendChild(topPanel.children[0]); // Entradas, Saídas, Balanço
+  const parcelHtml=renderParcelamentosCard();
+  if(parcelHtml){const parcelDiv=document.createElement('div');parcelDiv.innerHTML=parcelHtml;colSide.appendChild(parcelDiv.firstChild);}
   colMain.appendChild(tableCard);colMain.appendChild(navMeses);
   layout.appendChild(colMain);layout.appendChild(colSide);
   container.appendChild(layout);
