@@ -825,6 +825,18 @@ function renderParcelamentosCard(){
 // Usado como saldo inicial do mês seguinte
 function getSaldoFinal(m,depth){
   if((depth||0)>24)return 0; // proteção contra recursão infinita
+  // Reconciliação: se "m" é o mês corrente (hoje) e há contas cadastradas, o saldo real
+  // vem da soma das contas (mesma fonte de saldoAtualMes/_saldoDeContas) — a projeção por
+  // lançamentos abaixo pode ter divergido da realidade ao longo do tempo. Sem isso, o mês
+  // seguinte herdava (via getSI) um "saldo inicial" da projeção antiga, bem diferente do
+  // saldo real mostrado na tela — daí um outubro começar negativo mesmo com setembro ~ok.
+  const hoje0=new Date();const mesHoje0=hoje0.getFullYear()+'-'+String(hoje0.getMonth()+1).padStart(2,'0');
+  if(m===mesHoje0&&D._contas&&D._contas.length>0){
+    const prC=rowsOf(m);
+    const entReceber=prC.filter(r=>r.tipo==='in'&&r.status!=='pago').reduce((s,r)=>s+r.valor,0);
+    const saiPend=prC.filter(r=>r.tipo==='out'&&r.status!=='pago').reduce((s,r)=>s+r.valor,0);
+    return totalContas()+entReceber-saiPend;
+  }
   const meta=D[m+'_meta']||{};
   const pr=rowsOf(m);
   const totIn=pr.filter(r=>r.tipo==='in').reduce((s,r)=>s+r.valor,0);
