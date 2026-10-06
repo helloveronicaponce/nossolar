@@ -737,7 +737,7 @@ window.testConnection=testConnection;
 
 /* ── HELPERS ── */
 function uid(){return Math.random().toString(36).slice(2,14)}
-function today(){return new Date().toISOString().slice(0,10)}
+function today(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');} // data LOCAL
 function fd(d){if(!d)return'—';const[y,m,dd2]=d.split('-');return dd2+'/'+m;}
 function fv(v){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v||0);}
 function addM(m,n){const[y,mo]=m.split('-');const d=new Date(+y,+mo-1+n,1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
@@ -826,36 +826,7 @@ function renderParcelamentosCard(){
 // Usado como saldo inicial do mês seguinte
 function getSaldoFinal(m,depth){
   if((depth||0)>24)return 0; // proteção contra recursão infinita
-  // Reconciliação: se "m" é o mês corrente (hoje) e há contas cadastradas, o saldo real
-  // vem da soma das contas (mesma fonte de saldoAtualMes/_saldoDeContas) — a projeção por
-  // lançamentos abaixo pode ter divergido da realidade ao longo do tempo. Sem isso, o mês
-  // seguinte herdava (via getSI) um "saldo inicial" da projeção antiga, bem diferente do
-  // saldo real mostrado na tela — daí um outubro começar negativo mesmo com setembro ~ok.
-  const hoje0=new Date();const mesHoje0=hoje0.getFullYear()+'-'+String(hoje0.getMonth()+1).padStart(2,'0');
-  if(m===mesHoje0&&D._contas&&D._contas.length>0){
-    const prC=rowsOf(m);
-    const entReceber=prC.filter(r=>r.tipo==='in'&&r.status!=='pago').reduce((s,r)=>s+r.valor,0);
-    const saiPend=prC.filter(r=>r.tipo==='out'&&r.status!=='pago').reduce((s,r)=>s+r.valor,0);
-    return totalContas()+entReceber-saiPend;
-  }
-  const meta=D[m+'_meta']||{};
-  const pr=rowsOf(m);
-  const totIn=pr.filter(r=>r.tipo==='in').reduce((s,r)=>s+r.valor,0);
-  const totOut=pr.filter(r=>r.tipo==='out').reduce((s,r)=>s+r.valor,0);
-  // saldo FINAL = projeção do último dia do mês (sempre inclui os pendentes)
-  // Ajuste manual: reconcilia o saldo INICIAL do mês; a partir dele tudo flui normalmente.
-  // (curto-circuita a recursão exatamente como o formato antigo — não altera o carry-forward)
-  if(meta.saldoInicialAjustado!==undefined){
-    return meta.saldoInicialAjustado + totIn - totOut;
-  }
-  // Legado: valor absoluto do saldo atual (congelava o saldo — migrado no load p/ saldoInicialAjustado)
-  if(meta.saldoAtualManual!==undefined){
-    const pgIn=pr.filter(r=>r.tipo==='in'&&r.status==='pago').reduce((s,r)=>s+r.valor,0);
-    const pgOut=pr.filter(r=>r.tipo==='out'&&r.status==='pago').reduce((s,r)=>s+r.valor,0);
-    return meta.saldoAtualManual + (totIn-pgIn) - (totOut-pgOut);
-  }
-  const si=getSI(m,(depth||0)+1);
-  return si + totIn - totOut;   // carry-forward: este final vira o inicial do mês seguinte
+  return saldosMes(m,(depth||0)+1).final; // mesma regra do cabeçalho: o final de um mês vira o inicial do seguinte
 }
 
 // Migração: converte o saldo manual antigo (valor absoluto, que CONGELAVA o saldo atual)
@@ -903,8 +874,9 @@ function rowsOf(m){
 function getSI(m,depth){
   if((depth||0)>24)return 0;
   const prev=addM(m,-1);
-  // Se não há nenhum dado no mês anterior, começa do zero
-  if(!D[prev]&&!D[prev+'_meta'])return 0;
+  // Sem dado no mês anterior (no passado) começa do zero. No mês corrente/futuro a cadeia
+  // continua mesmo em meses só com recorrentes virtuais (antes zerava a projeção nesses casos).
+  if(!D[prev]&&!D[prev+'_meta']&&prev<_mesHoje())return 0;
   return getSaldoFinal(prev,(depth||0)+1);
 }
 
@@ -1074,17 +1046,15 @@ function render(){
   const tOut=all.filter(r=>r.tipo==='out').reduce((s,r)=>s+r.valor,0);
   const pOut=all.filter(r=>r.tipo==='out'&&r.status==='pago').reduce((s,r)=>s+r.valor,0);
   const pIn=all.filter(r=>r.tipo==='in'&&r.status==='pago').reduce((s,r)=>s+r.valor,0);
-  const si=getSI(mes);const metaM=D[mes+'_meta']||{};
-  const sAtual=saldoAtualMes();
-  // Saldo final = saldo atual + pendentes (projeção)
-  const pendIn=all.filter(r=>r.tipo==='in'&&r.status!=='pago').reduce((s,r)=>s+r.valor,0);
-  const pendOut=all.filter(r=>r.tipo==='out'&&r.status!=='pago').reduce((s,r)=>s+r.valor,0);
-  const sFinal=sAtual+pendIn-pendOut;
-  const hasPend=all.some(r=>r.status!=='pago');
+  const SM=saldosMes(mes);const metaM=D[mes+'_meta']||{};
+  const si=SM.si, sAtual=SM.atual;
+  // Saldo final = saldo atual + pendentes do mês + pendentes de meses anteriores (projeção)
+  const sFinal=SM.final;
+  const hasPend=all.some(r=>r.status!=='pago')||SM.atrasados.length>0;
   const hasMetaManual=metaM.saldoInicialAjustado!==undefined||metaM.saldoAtualManual!==undefined||metaM.saldoInicialManual!==undefined;
-  const proj=calcProj(all,sAtual);
+  const proj=calcProj(all.concat(SM.atrasados),sAtual);
   const minP=Object.values(proj).length?Math.min(...Object.values(proj)):sAtual;
-  const tagSI=hasMetaManual?'ajustado':mesFuturo(mes)?'projetado':'carry-forward';
+  const tagSI=SM.modo==='contas'?'calculado':hasMetaManual?'ajustado':mesFuturo(mes)?'projetado':'carry-forward';
   const tagSIbg=hasMetaManual?'#f0fdf4':mesFuturo(mes)?'#fff8ee':'#f0f4ff';
   const tagSIco=hasMetaManual?'var(--g)':mesFuturo(mes)?'#92400e':'#6b7280';
   const tagFin=hasPend?'projetado':'realizado';
@@ -1131,6 +1101,7 @@ function render(){
   let al='';
   if(atr.length)al+='<div class="alert danger"><span style="font-size:18px">🔴</span><div><div class="alt">'+atr.length+' atrasado'+(atr.length>1?'s':'')+'</div><div class="alt"><span>'+atr.map(r=>r.desc).join(' · ')+'</span></div></div></div>';
   if(todP.length)al+='<div class="alert warn"><span style="font-size:18px">⚠️</span><div><div class="alt">'+todP.length+' vence'+(todP.length>1?'m':'')+' hoje — '+fv(todP.reduce((s,r)=>s+r.valor,0))+'</div><div class="alt"><span>'+todP.map(r=>r.desc).join(' · ')+'</span></div></div></div>';
+  if(SM.atrasados.length){const tA=SM.atrasados.reduce((s,r)=>s+(r.tipo==='in'?-1:1)*(r.valor||0),0);al+='<div class="alert warn"><span style="font-size:18px">⏳</span><div><div class="alt">'+SM.atrasados.length+' lançamento'+(SM.atrasados.length>1?'s':'')+' de meses anteriores sem pagamento — '+fv(Math.abs(tA))+(tA>=0?' a pagar':' a receber')+' (já incluído no saldo final)</div><div class="alt"><span>'+SM.atrasados.slice(0,6).map(r=>r.desc+' ('+fd(r.venc)+')').join(' · ')+(SM.atrasados.length>6?' …':'')+'</span></div></div></div>';}
   if(minP<0){const nrs=Object.entries(proj).filter(([,v])=>v<0).map(([id])=>all.find(r=>r.id===id)?.desc).filter(Boolean);al+='<div class="alert info"><span style="font-size:18px">📉</span><div><div class="alt">Saldo negativo após: <span>'+nrs.slice(0,3).join(', ')+'</span></div><div class="alt"><span>Mínimo projetado: '+fv(minP)+'</span></div></div></div>';}
   const alEl=document.getElementById(isMob()?'alerts-m':'alerts')||document.getElementById('alerts');if(alEl)alEl.innerHTML=al;
   const alWrap=document.getElementById('alerts-wrap');if(alWrap)alWrap.style.display=al?'block':'none';
@@ -1460,7 +1431,7 @@ function saveCardSegments(cid){
 }
 
 /* ── GESTÃO CARTÕES ── */
-function getFaturaForMonth(cid,m){return(D['_faturas']&&D['_faturas'][m]&&D['_faturas'][m][cid])||0;}
+function getFaturaForMonth(cid,m){return _faturaRaw(cid,m)||0;} // _faturas é gravado pelo nome do cartão
 function getLimite(cid){const k=_cardNome(cid);return(D['_limites']&&(D['_limites'][k]!=null?D['_limites'][k]:D['_limites'][cid]))||0;}
 function setLimite(cid,v){if(!D['_limites'])D['_limites']={};D['_limites'][cid]=+parseFloat(v).toFixed(2);saveData();}
 function editLimite(cid,el){
@@ -2019,17 +1990,24 @@ function patchVal(id,value,scope,rOrig){
 }
 
 /* ── PATCH ── */
+// Move um lançamento gravado de um mês para outro. Se for recorrente (modelo ou cópia), deixa uma
+// marca de "pulado" no mês de origem — senão o painel recriava a cópia pendente lá e o valor contava 2x.
+function _moverLanc(fromM,idx,toM,changes){
+  const orig=D[fromM][idx];const entry={...orig,...changes};
+  D[fromM].splice(idx,1);
+  if(orig._recClone||orig.recorrente){
+    const paiId=orig._recClone||orig.id;const tomb='rec_'+paiId+'_'+fromM;
+    if(!D[fromM].some(x=>x.id===tomb))D[fromM].push({id:tomb,_deletado:true});
+  }
+  if(!D[toM])D[toM]=[];D[toM].push(entry);
+}
 function patch(id,field,value){
   if(!D[mes])return;const idx=D[mes].findIndex(r=>r.id===id);if(idx<0)return;
   if(field==='venc'&&value){
     const newMes=value.slice(0,7);
-    if(newMes!==mes){
-      const entry={...D[mes][idx],venc:value};D[mes].splice(idx,1);
-      if(!D[newMes])D[newMes]=[];D[newMes].push(entry);
-      saveData();reRender();return;
-    }
+    if(newMes!==mes){_moverLanc(mes,idx,newMes,{venc:value});saveData();reRender();return;}
   }
-  if(field==='pag'&&value){const newMes=value.slice(0,7);if(newMes!==mes){const entry={...D[mes][idx],pag:value};D[mes].splice(idx,1);if(!D[newMes])D[newMes]=[];D[newMes].push(entry);saveData();reRender();return;}}
+  if(field==='pag'&&value){const newMes=value.slice(0,7);if(newMes!==mes){_moverLanc(mes,idx,newMes,{pag:value});saveData();reRender();return;}}
   D[mes][idx][field]=value;saveData();reRender();
 }
 
@@ -2054,10 +2032,11 @@ function patchDate(id,field,value,scope,rOrig){
     }
     // 2. Remove overrides explícitos de meses futuros (clones gravados) cujo dia divergia
     //    para que passem a usar o novo dia padrão do pai
+    //    (cópias já pagas são preservadas — antes eram apagadas e voltavam como pendentes)
     Object.keys(D).forEach(m=>{
-      if(m<=mes&&m!==mes)return; // só meses >= atual
+      if(m<=mes)return; // só meses posteriores; o mês atual é tratado no passo 3
       if(!Array.isArray(D[m]))return;
-      D[m]=D[m].filter(r=>!(r._recClone===paiId&&m!==paiMes));
+      D[m]=D[m].filter(r=>!(r._recClone===paiId&&m!==paiMes&&r.status!=='pago'));
     });
     // 3. Se este mês já tem um clone gravado com dia diferente, atualiza ou remove
     if(D[mes]){
@@ -2077,11 +2056,7 @@ function patchDate(id,field,value,scope,rOrig){
     const existIdx=D[mes].findIndex(r=>r.id===id);
     if(existIdx>=0){
       const newMes=value.slice(0,7);
-      if(newMes!==mes){
-        const entry={...D[mes][existIdx],venc:value};D[mes].splice(existIdx,1);
-        if(!D[newMes])D[newMes]=[];D[newMes].push(entry);
-        saveData();reRender();return;
-      }
+      if(newMes!==mes){_moverLanc(mes,existIdx,newMes,{venc:value});saveData();reRender();return;}
       D[mes][existIdx].venc=value;
       saveData();reRender();
       return;
@@ -2262,7 +2237,10 @@ function saveItem(){
   const item={tipo:document.getElementById('f-tipo').value,status:document.getElementById('f-status').value,venc:document.getElementById('f-venc').value,pag:document.getElementById('f-pag').value||null,desc:document.getElementById('f-desc').value.trim(),cat:document.getElementById('f-cat').value,valor:vraw,obs:document.getElementById('f-obs').value.trim(),parcelas,parcelaAtual:pa,recorrente:isRec||undefined};
   if(!item.desc){alert('Informe uma descrição');return;}
   if(!D[mes])D[mes]=[];
-  if(eid){const idx=D[mes].findIndex(x=>x.id===eid);if(idx>=0)Object.assign(D[mes][idx],item);}
+  if(eid){const idx=D[mes].findIndex(x=>x.id===eid);
+    if(idx>=0)Object.assign(D[mes][idx],item);
+    else{const v=rows().find(x=>x.id===eid);if(v)D[mes].push({...v,...item,id:eid,_recClone:v._recClone,recorrente:v.recorrente});} // cópia virtual de recorrente: grava a edição neste mês
+  }
   else{D[mes].push({...item,id:uid()});if(criar&&pa<parcelas){for(let i=pa+1;i<=parcelas;i++){const fm=addM(mes,i-pa);if(!D[fm])D[fm]=[];D[fm].push({...item,parcelaAtual:i,status:'pendente',pag:null,venc:sameDay(item.venc,fm),id:uid()});}}}
   closeModal();saveData();reRender();
 }
@@ -2345,8 +2323,8 @@ if(localStorage.getItem('darkMode')==='1'){
 function checkCartaoAlerts(){
   const cartoes=getCartoes();
   cartoes.forEach(cartao=>{
-    const fatura=((D._faturas||{})[mes]||{})[cartao.id]||0;
-    const limite=((D._limites||{})[cartao.id]||0);
+    const fatura=_faturaRaw(cartao.id,mes)||0;
+    const limite=getLimite(cartao.id);
     if(limite>0){
       const percentual=(fatura/limite)*100;
       if(percentual>=90){
@@ -2447,7 +2425,8 @@ function renderLancamentosDesktop(){
   container.innerHTML='';
 
   // PAINEL SUPERIOR 1:3
-  const saldoInicialMes=getSI(mes);
+  const SMd=saldosMes(mes);
+  const saldoInicialMes=SMd.si;
   const r=rows();
   const pIn=r.filter(x=>x.tipo==='in'&&x.status==='pago').reduce((a,x)=>a+x.valor,0);
   const pOut=r.filter(x=>x.tipo==='out'&&x.status==='pago').reduce((a,x)=>a+x.valor,0);
@@ -2455,8 +2434,12 @@ function renderLancamentosDesktop(){
   const aReceber=r.filter(x=>x.tipo==='in'&&x.status==='pendente').reduce((a,x)=>a+x.valor,0);
   const entReceber=r.filter(x=>x.tipo==='in'&&x.status!=='pago').reduce((a,x)=>a+x.valor,0);
   const saiPend=r.filter(x=>x.tipo==='out'&&x.status!=='pago').reduce((a,x)=>a+x.valor,0);
-  const saldoAtual=saldoAtualMes();                    // hoje (respeita ajuste manual)
-  const saldoProj=saldoAtual+entReceber-saiPend;       // projeção para o ÚLTIMO dia do mês
+  const saldoAtual=SMd.atual;                          // hoje: contas (+ pagos depois da atualização) ou ajuste manual
+  const saldoProj=SMd.final;                           // projeção para o ÚLTIMO dia do mês (inclui atrasados anteriores)
+  const _refAt=(SMd.modo==='contas'&&D._contasRef&&D._contasRef.at)?new Date(D._contasRef.at):null;
+  const _depNet=SMd.depois?SMd.depois.inn-SMd.depois.out:0;
+  const _reconHtml=_refAt?'<div style="font-size:10px;color:var(--t3);line-height:1.35;margin-top:.15rem">Contas atualizadas em '+_refAt.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+' '+_refAt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+(SMd.depois&&SMd.depois.itens.length?' · '+(_depNet>=0?'+':'−')+fv(Math.abs(_depNet))+' de '+SMd.depois.itens.length+' lançamento'+(SMd.depois.itens.length>1?'s':'')+' marcado'+(SMd.depois.itens.length>1?'s':'')+' como pago depois':'')+'</div>':'';
+  const _atrHtml=SMd.atrasados.length?'<div style="font-size:10px;color:#92400e;margin-top:.15rem">Inclui '+fv(Math.abs(SMd.atrasadosNet))+(SMd.atrasadosNet<=0?' a pagar':' a receber')+' de meses anteriores ('+SMd.atrasados.length+')</div>':'';
 
   const topPanel=document.createElement('div');
   topPanel.style.cssText='display:grid;grid-template-columns:1fr 1.2fr;gap:0.5rem;margin-bottom:0.5rem';
@@ -2467,11 +2450,11 @@ function renderLancamentosDesktop(){
     <div style="display:flex;flex-direction:column;gap:0.3rem">
       <div>
         <div style="font-size:9px;color:var(--t3);margin-bottom:2px;display:flex;align-items:center;gap:6px">Saldo Atual <span onclick="editSaldo(event,'svd-desk')" title="Ajustar o saldo manualmente" style="cursor:pointer;background:#e8f8ef;color:var(--g);border:1px solid var(--g);border-radius:5px;padding:1px 6px;font-size:10px;font-weight:700;text-transform:none;letter-spacing:0">✎ Ajustar</span></div>
-        <div id="svd-desk" onclick="editSaldo(event,'svd-desk')" title="Clique para ajustar" style="font-size:24px;font-weight:700;cursor:pointer;color:${saldoAtual>=0?'var(--g)':'var(--r)'}">${fv(saldoAtual)}</div>
+        <div id="svd-desk" onclick="editSaldo(event,'svd-desk')" title="Clique para ajustar" style="font-size:24px;font-weight:700;cursor:pointer;color:${saldoAtual>=0?'var(--g)':'var(--r)'}">${fv(saldoAtual)}</div>${_reconHtml}
       </div>
       <div style="display:flex;gap:1rem;justify-content:space-between;font-size:12px">
         <div><div style="font-size:10px;color:var(--t3);margin-bottom:1px">Saldo inicial <span style="opacity:.65">· 1º dia</span></div><div style="font-weight:600;color:var(--t)">${fv(saldoInicialMes)}</div></div>
-        <div><div style="font-size:10px;color:var(--t3);margin-bottom:1px">Saldo final <span style="opacity:.65">· último dia</span></div><div style="font-weight:600;color:${saldoProj>=0?'var(--g2)':'var(--r2)'}">${fv(saldoProj)}</div></div>
+        <div><div style="font-size:10px;color:var(--t3);margin-bottom:1px">Saldo final <span style="opacity:.65">· último dia</span></div><div style="font-weight:600;color:${saldoProj>=0?'var(--g2)':'var(--r2)'}">${fv(saldoProj)}</div>${_atrHtml}</div>
       </div>
     </div>
   </div>`;
@@ -3038,8 +3021,8 @@ function renderCartoesDesktop(){
   let html='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:.75rem">';
 
   cartoes.forEach(cartao=>{
-    const fatura=((D._faturas||{})[mes]||{})[cartao.id]||0;
-    const limite=((D._limites||{})[cartao.id]||0);
+    const fatura=_faturaRaw(cartao.id,mes)||0;
+    const limite=getLimite(cartao.id);
     const usado=fatura;
     const disponivel=Math.max(0,limite-usado);
     const percentual=limite>0?(usado/limite*100):0;
@@ -3637,7 +3620,7 @@ function _contaModal(id){
     {label:'Nome',key:'nome',type:'text',value:c.nome||'',ph:'ex: Itaú, Nubank, Caixinha'},
     {label:'Emoji',key:'emoji',type:'text',value:c.emoji||'🏦'},
     {label:'Saldo (R$)',key:'saldo',type:'number',value:c.saldo||0}
-  ],vals=>{ if(!D._contas)D._contas=[]; if(id){Object.assign(c,vals);}else{vals.id='cta_'+Date.now();D._contas.push(vals);} saveData();reRender();toast('Conta salva'); });
+  ],vals=>{ if(!D._contas)D._contas=[]; vals.saldo=+(+vals.saldo||0).toFixed(2); const mudouSaldo=!id||(+c.saldo||0)!==vals.saldo; if(id){Object.assign(c,vals);}else{vals.id='cta_'+Date.now();D._contas.push(vals);} if(mudouSaldo)marcarContasAtualizadas(); saveData();reRender();toast('Conta salva'); });
 }
 function removeConta(id){ if(confirm('Remover esta conta?')){D._contas=(D._contas||[]).filter(x=>x.id!==id);saveData();reRender();} }
 /* ── PÁGINA CONTAS (aba dedicada) ── */
@@ -3715,7 +3698,7 @@ function editContaSaldo(cid,el){
   const inp=document.createElement('input');inp.type='number';inp.value=(c.saldo||0).toFixed(2);
   inp.step='0.01';inp.className='cc-inp';
   el.innerHTML='';el.appendChild(inp);inp.focus();inp.select();
-  const commit=()=>{const v=parseFloat(inp.value);if(!isNaN(v)){c.saldo=+v.toFixed(2);saveData();}reRender();};
+  const commit=()=>{const v=parseFloat(inp.value);if(!isNaN(v)){c.saldo=+v.toFixed(2);marcarContasAtualizadas();saveData();}reRender();};
   inp.addEventListener('blur',commit);inp.addEventListener('keydown',ev=>{if(ev.key==='Enter')inp.blur();if(ev.key==='Escape')reRender();});inp.addEventListener('click',ev=>ev.stopPropagation());
 }
 
@@ -3744,12 +3727,11 @@ function renderPrevisaoFluxo(){
   const MN=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
   const p=mes.split('-').map(Number);
   // saldo projetado do mês atual = saldo atual + pendentes do mês
-  const pend=(D[mes]||[]).filter(x=>x.status!=='pago').reduce((a,x)=>a+(x.tipo==='in'?x.valor:-x.valor),0);
-  let cur=saldoAtualMes()+pend;
+  let cur=saldosMes(mes).final;
   const meses=[{label:MN[p[1]-1]+'/'+String(p[0]).slice(2),saldo:cur}];
   for(let i=1;i<=5;i++){
     const d=p[1]-1+i, yy=p[0]+Math.floor(d/12), mm=(d%12)+1, key=yy+'-'+String(mm).padStart(2,'0');
-    cur+=(D[key]||[]).reduce((a,x)=>a+(x.tipo==='in'?x.valor:-x.valor),0);
+    cur=getSaldoFinal(key);
     meses.push({label:MN[mm-1]+'/'+String(yy).slice(2),saldo:cur});
   }
   const maxAbs=Math.max(1,...meses.map(x=>Math.abs(x.saldo)));
@@ -3765,23 +3747,75 @@ function _divParcela(d){ return (d.parcela_mensal!=null?d.parcela_mensal:d.parce
 function _divPagas(d){ return (d.parcelas_pagas!=null?d.parcelas_pagas:d.parcelasPagas)||0; }
 function _divTotal(d){ return (d.total_parcelas!=null?d.total_parcelas:d.parcelasTotal)||0; }
 function totalDividasRestante(){ return _dividasArr().reduce((s,d)=>s+Math.max(0,(_divTotal(d)-_divPagas(d)))*_divParcela(d),0); }
-function totalContas(){return (D._contas||[]).reduce((s,c)=>s+(c.saldo||0),0);}
+function totalContas(){return (D._contas||[]).reduce((s,c)=>s+(+c.saldo||0),0);}
 // true quando o "Saldo Atual" do mês corrente deve vir da soma das contas cadastradas
 // (só se aplica ao mês de HOJE — meses passados/futuros continuam usando a projeção por lançamentos)
-function _saldoDeContas(){
-  const hoje=new Date();const mesHoje=hoje.getFullYear()+'-'+String(hoje.getMonth()+1).padStart(2,'0');
-  return mes===mesHoje&&D._contas&&D._contas.length>0;
+function _mesHoje(){const h=new Date();return h.getFullYear()+'-'+String(h.getMonth()+1).padStart(2,'0');}
+function _temContas(){return !!(D._contas&&D._contas.length>0);}
+function _saldoDeContas(){return mes===_mesHoje()&&_temContas();}
+
+/* ── RECONCILIAÇÃO CONTAS × LANÇAMENTOS ──
+   D._contasRef = {at, desde, pagos:[ids]} é uma "foto" tirada quando o saldo das contas é digitado:
+   tudo o que estava pago naquele momento já está refletido nos saldos das contas. O que for marcado
+   como pago DEPOIS ajusta o saldo atual, até a próxima atualização das contas (que tira nova foto).
+   Assim marcar "pago" não some da projeção nem desconta duas vezes. */
+const _JANELA_REF=3; // meses para trás considerados na reconciliação e nos atrasados
+function _mesesLanc(){return Object.keys(D).filter(k=>/^\d{4}-\d{2}$/.test(k)&&Array.isArray(D[k])).sort();}
+function _pagosIds(desde){const s=[];_mesesLanc().forEach(m=>{if(m<desde)return;D[m].forEach(r=>{if(r&&!r._deletado&&r.status==='pago'&&r.id)s.push(r.id);});});return s;}
+function marcarContasAtualizadas(){const desde=addM(_mesHoje(),-_JANELA_REF);D._contasRef={at:new Date().toISOString(),desde,pagos:_pagosIds(desde)};}
+function _garanteContasRef(){if(_temContas()&&!(D._contasRef&&Array.isArray(D._contasRef.pagos))){marcarContasAtualizadas();return true;}return false;}
+// lançamentos marcados como pagos depois da última atualização das contas
+function _movDepoisDasContas(){
+  const ref=D._contasRef;const res={inn:0,out:0,itens:[]};
+  if(!ref||!Array.isArray(ref.pagos))return res;
+  const ja=new Set(ref.pagos);
+  _mesesLanc().forEach(m=>{if(m<ref.desde)return;D[m].forEach(r=>{
+    if(!r||r._deletado||r.status!=='pago'||ja.has(r.id))return;
+    if(r.tipo==='in')res.inn+=r.valor||0;else res.out+=r.valor||0;
+    res.itens.push(r);
+  });});
+  return res;
 }
-function saldoAtualMes(){
-  if(_saldoDeContas())return totalContas();
-  const meta=D[mes+'_meta']||{};
-  const r=rows();
-  const pIn=r.filter(x=>x.tipo==='in'&&x.status==='pago').reduce((a,x)=>a+x.valor,0);
-  const pOut=r.filter(x=>x.tipo==='out'&&x.status==='pago').reduce((a,x)=>a+x.valor,0);
-  if(meta.saldoInicialAjustado!==undefined)return meta.saldoInicialAjustado+pIn-pOut;
-  if(meta.saldoAtualManual!==undefined)return meta.saldoAtualManual; // legado pré-migração
-  return getSI(mes)+pIn-pOut;
+// lançamentos gravados nos meses anteriores que continuam sem pagamento (entram na projeção do mês)
+function _atrasadosAnteriores(m){
+  const ini=addM(m,-_JANELA_REF);const lst=[];
+  _mesesLanc().forEach(k=>{if(k<ini||k>=m)return;D[k].forEach(r=>{if(r&&!r._deletado&&r.status!=='pago'&&r.id)lst.push(r);});});
+  return lst;
 }
+// FONTE ÚNICA dos saldos de um mês. Sempre vale: si + pagos(in−out) = atual e atual + pendentes(+atrasados) = final
+function saldosMes(m,depth){
+  const pr=rowsOf(m);
+  const sum=f=>pr.filter(f).reduce((s,r)=>s+(r.valor||0),0);
+  const res={pIn:sum(r=>r.tipo==='in'&&r.status==='pago'),pOut:sum(r=>r.tipo==='out'&&r.status==='pago'),
+    pendIn:sum(r=>r.tipo==='in'&&r.status!=='pago'),pendOut:sum(r=>r.tipo==='out'&&r.status!=='pago'),
+    atrasados:[],atrasadosNet:0,depois:null,modo:'lancamentos'};
+  const hojeM=_mesHoje();
+  if(_temContas()&&m===hojeM){
+    // mês corrente: parte do saldo real das contas (+ o que foi marcado pago depois da última atualização)
+    const dep=_movDepoisDasContas();
+    res.modo='contas';res.depois=dep;
+    res.atual=totalContas()+dep.inn-dep.out;
+    res.si=res.atual-(res.pIn-res.pOut);
+    res.atrasados=_atrasadosAnteriores(m);
+    res.atrasadosNet=res.atrasados.reduce((s,r)=>s+(r.tipo==='in'?1:-1)*(r.valor||0),0);
+    res.final=res.atual+res.pendIn-res.pendOut+res.atrasadosNet;
+    return res;
+  }
+  if(_temContas()&&m>hojeM){
+    // meses futuros: o que já foi pago antecipadamente já saiu das contas — só os pendentes movem a projeção
+    res.modo='projecao';
+    res.si=getSI(m,depth);res.atual=res.si;res.final=res.si+res.pendIn-res.pendOut;
+    return res;
+  }
+  // meses passados (ou sem contas cadastradas): carry-forward por lançamentos + ajuste manual do mês
+  const meta=D[m+'_meta']||{};
+  if(meta.saldoInicialAjustado!==undefined)res.si=meta.saldoInicialAjustado;
+  else if(meta.saldoAtualManual!==undefined)res.si=meta.saldoAtualManual-(res.pIn-res.pOut); // legado
+  else res.si=getSI(m,depth);
+  res.atual=res.si+res.pIn-res.pOut;res.final=res.atual+res.pendIn-res.pendOut;
+  return res;
+}
+function saldoAtualMes(){return saldosMes(mes).atual;}
 /* ── V1 Patrimônio Líquido + V3 Taxa de Poupança ── */
 function renderPatrimonioResumo(){
   const saldo=saldoAtualMes(), inv=totalInvestimentos(), div=totalDividasRestante();
@@ -3815,7 +3849,8 @@ function fluxoTip(ev,i){
   tip.innerHTML='<div style="font-weight:700;margin-bottom:5px;text-transform:capitalize">'+d.lbl+(d.fut?' · projeção':'')+'</div>'
     +'<div style="display:flex;justify-content:space-between;gap:1.25rem"><span style="color:var(--t3)">Entradas</span><span style="color:var(--g);font-weight:600">+'+fv(d.inn)+'</span></div>'
     +'<div style="display:flex;justify-content:space-between;gap:1.25rem"><span style="color:var(--t3)">Saídas</span><span style="color:var(--r);font-weight:600">−'+fv(d.out)+'</span></div>'
-    +'<div style="display:flex;justify-content:space-between;gap:1.25rem;border-top:1px solid var(--b);margin-top:4px;padding-top:4px"><span style="color:var(--t3)">Resultado</span><span style="font-weight:700;color:'+(d.saldo<0?'var(--r)':'var(--t)')+'">'+fv(d.saldo)+'</span></div>';
+    +'<div style="display:flex;justify-content:space-between;gap:1.25rem;border-top:1px solid var(--b);margin-top:4px;padding-top:4px"><span style="color:var(--t3)">Resultado</span><span style="font-weight:700;color:'+(d.saldo<0?'var(--r)':'var(--t)')+'">'+fv(d.saldo)+'</span></div>'
+    +(d.sf!=null?'<div style="display:flex;justify-content:space-between;gap:1.25rem"><span style="color:var(--t3)">Saldo no fim do mês</span><span style="font-weight:700;color:'+(d.sf<0?'var(--r)':'var(--g)')+'">'+fv(d.sf)+'</span></div>':'');
   const rect=wrap.getBoundingClientRect();
   tip.style.display='block';
   let x=ev.clientX-rect.left+14, y=ev.clientY-rect.top-10;
@@ -3831,11 +3866,14 @@ function renderFluxoCaixa(){
   const MNs=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
   const [Y,M]=mes.split('-').map(Number);
   const key=off=>{const d=(M-1)+off,yy=Y+Math.floor(d/12),mm=((d%12)+12)%12+1;return yy+'-'+String(mm).padStart(2,'0');};
-  const inn=k=>rowsOf(k).filter(x=>x.tipo==='in').reduce((a,x)=>a+(x.valor||0),0);
-  const outf=k=>rowsOf(k).filter(x=>x.tipo==='out').reduce((a,x)=>a+(x.valor||0),0);
+  // meses passados: só o que foi efetivamente pago (realizado); mês atual e futuros: tudo o que está previsto
+  const _mh=_mesHoje();
+  const _sel=(k,t)=>rowsOf(k).filter(x=>x.tipo===t&&(k>=_mh||x.status==='pago')).reduce((a,x)=>a+(x.valor||0),0);
+  const inn=k=>_sel(k,'in');
+  const outf=k=>_sel(k,'out');
   const nPast=_fxP, nFut=3;
   const offs=[]; for(let o=-(nPast-1);o<=nFut;o++)offs.push(o);
-  const S=offs.map(o=>{const k=key(o),i=inn(k),ou=outf(k);return {o,k,lbl:MNs[+k.slice(5)-1],inn:i,out:ou,saldo:i-ou,fut:o>=0};});
+  const S=offs.map(o=>{const k=key(o),i=inn(k),ou=outf(k);return {o,k,lbl:MNs[+k.slice(5)-1],inn:i,out:ou,saldo:i-ou,fut:k>=_mh,sf:k>=_mh?getSaldoFinal(k):null};});
   _fluxoData=S;
   const idxNow=nPast-1;
   const max=Math.max(1,...S.flatMap(p=>[p.inn,p.out]));
@@ -3877,7 +3915,7 @@ function renderGraficoEntradasSaidas(){
   if(!meses.length){el.style.cssText='height:120px;display:flex;align-items:center;justify-content:center;color:var(--t3)';el.innerHTML='Sem dados ainda';return;}
   const MNs=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
   const dados=meses.map(m=>{
-    const rws=(D[m]||[]);
+    const rws=rowsOf(m);
     const inn=rws.filter(r=>r.tipo==='in').reduce((s,r)=>s+(r.valor||0),0);
     const out=rws.filter(r=>r.tipo==='out').reduce((s,r)=>s+(r.valor||0),0);
     return {m,inn,out};
@@ -3942,6 +3980,8 @@ async function init(){
       if(_nrm>0){console.log('🧹 Removidos '+_nrm+' pagamentos de fatura criados por engano em meses passados');saveData();}
       const _migAj=migrateSaldoAjuste();
       if(_migAj){console.log('🔄 Saldo ajustado migrado p/ formato reativo — saldo atual volta a reagir a pagamentos');saveData();}
+      // 1ª carga após a reconciliação contas × lançamentos: os saldos atuais das contas viram a referência
+      if(_garanteContasRef()){console.log('🔗 Referência de saldo das contas criada');saveData();}
 
       if(isMob()){
         // Mobile: renderizar visão geral por padrão
