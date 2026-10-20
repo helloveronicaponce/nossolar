@@ -640,7 +640,6 @@ const CARTOES_DEFAULT=[
   {id:'btg',nome:'Banco BTG',cor:'#000000',emoji:'⚫',fechamento:21,vencimento:24},
   {id:'mp_vero',nome:'M. Pago Verônica',cor:'#009ee3',emoji:'🔷',fechamento:9,vencimento:14},
   {id:'mp_diego',nome:'M. Pago Diego',cor:'#0070c0',emoji:'🔹',fechamento:29,vencimento:4},
-  {id:'carrefour',nome:'Banco Carrefour',cor:'#00a651',emoji:'🟢',fechamento:16,vencimento:21},
 ];
 function getCartoes(){if(!D['_cartoes']||!D['_cartoes'].length)D['_cartoes']=JSON.parse(JSON.stringify(CARTOES_DEFAULT));return D['_cartoes'];}
 function _cardNome(cid){const c=(D._cartoes||[]).find(x=>x.id===cid);return c?c.nome:cid;}
