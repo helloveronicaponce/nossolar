@@ -642,7 +642,7 @@ function syncTodosCartoes(){
       const[ano,mo]=mes.split('-');const dia=String(c.vencimento||1).padStart(2,'0');
       D[mes].push({id,tipo:'out',venc:ano+'-'+mo+'-'+dia,pag:null,desc:'Pagamento de fatura - '+c.nome,cat:'Cartões',valor:raw,status:'pendente',obs:'Fatura '+c.nome+' — fech. dia '+c.fechamento,parcelas:1,parcelaAtual:1});
       changed=true;
-    }else if(ex.status!=='pago'&&ex.valor!==raw){ex.valor=raw;changed=true;}
+    }else if(ex.status!=='pago'&&(ex.valor!==raw||ex._estimativa)){ex.valor=raw;delete ex._estimativa;delete ex._proj;delete ex._projValor;changed=true;}
   });
   return changed;
 }
@@ -1007,6 +1007,7 @@ function render(){
   if(headerEl)headerEl.textContent=MN[+mes.slice(5)-1];
   closeDd();
   if(syncTodosCartoes())saveData(); // gera automaticamente os lançamentos de pagamento de fatura
+  if(syncProjecoesCartoes())saveData(); // faturas projetadas viram lançamentos estimados nos meses futuros
   const all=rows();let list=[...all];
   const srchEl=document.getElementById('srch')||document.getElementById('srch-m');
   const q=(srchEl?.value||'').toLowerCase();
@@ -2562,6 +2563,36 @@ function renderCartoesResumo(){
   return html;
 }
 
+
+/* ── PROJEÇÃO → LANÇAMENTOS (fluxo de caixa): fatura projetada vira lançamento "estimativa" em cada mês ──
+   Linha cc_<cartão>_<mês> com _estimativa e _proj. A fatura real (D._faturas) substitui a estimativa;
+   marcar como paga também a confirma. Editar o valor na linha atualiza a projeção, e vice-versa. */
+function syncProjecoesCartoes(){
+  const mesHoje=_projMesHoje();let changed=false;
+  const ms=new Set(Object.keys(D._faturasProj||{}));
+  Object.keys(D).forEach(k=>{if(/^\d{4}-\d{2}$/.test(k)&&Array.isArray(D[k]))ms.add(k);});
+  ms.forEach(m=>{
+    if(!/^\d{4}-\d{2}$/.test(m)||m<mesHoje)return;
+    getCartoes().forEach(c=>{
+      const id='cc_'+c.id+'_'+m;const arr=D[m]||[];const ex=arr.find(r=>r.id===id);
+      const raw=_faturaRaw(c.id,m);const p=getProj(m,c.id);
+      if(ex){
+        if(!(ex._proj&&ex._estimativa)||ex.status==='pago')return;
+        if(raw!=null&&raw>0){ex.valor=raw;delete ex._estimativa;delete ex._proj;delete ex._projValor;changed=true;return;}
+        if(p!=null&&p>0&&p!==ex._projValor){ex.valor=p;ex._projValor=p;changed=true;return;}   // projeção editada na tabela
+        if(ex.valor!==ex._projValor&&ex.valor>0){setProj(m,c.id,ex.valor);ex._projValor=ex.valor;changed=true;return;} // valor editado na linha
+        if(p==null||!(p>0)){D[m]=arr.filter(r=>r!==ex);changed=true;}   // projeção apagada
+        return;
+      }
+      if(p==null||!(p>0)||(raw!=null&&raw>0))return;
+      if(!D[m])D[m]=[];
+      const[ano,mo]=m.split('-');const dia=String(Math.min(28,parseInt(c.vencimento)||1)).padStart(2,'0');
+      D[m].push({id,tipo:'out',venc:ano+'-'+mo+'-'+dia,pag:null,desc:'Fatura '+c.nome+' (prevista)',cat:'Cartões',valor:p,status:'pendente',obs:'Fatura projetada — '+c.nome+' (estimativa, não confirmada)',parcelas:1,parcelaAtual:1,_estimativa:true,_proj:true,_projValor:p});
+      changed=true;
+    });
+  });
+  return changed;
+}
 /* ── PROJEÇÃO DAS PRÓXIMAS FATURAS (digitação rápida: cartão × mês) ──
    Guarda em D._faturasProj[AAAA-MM][idDoCartão] = valor. Não mistura com o histórico (D._faturas);
    a fatura real do mês, quando existe, sempre prevalece e aparece só para leitura. */
@@ -2574,7 +2605,7 @@ function setProj(m,cid,v){
   if(v==null){if(D._faturasProj[m]){delete D._faturasProj[m][cid];if(!Object.keys(D._faturasProj[m]).length)delete D._faturasProj[m];}}
   else{if(!D._faturasProj[m])D._faturasProj[m]={};D._faturasProj[m][cid]=v;}
 }
-function _faturaRealMes(cid,m){const raw=_faturaRaw(cid,m);if(raw!=null&&raw>0)return raw;const l=_ccLanc(cid,m);return(l&&l.valor>0)?l.valor:null;}
+function _faturaRealMes(cid,m){const raw=_faturaRaw(cid,m);if(raw!=null&&raw>0)return raw;const l=_ccLanc(cid,m);return(l&&l.valor>0&&!l._estimativa)?l.valor:null;}
 function _valorMes(cid,m){const r=_faturaRealMes(cid,m);if(r!=null)return r;const p=getProj(m,cid);return p!=null?p:0;}
 function _projTotais(){
   const o=D._faturasProj||{};
@@ -2634,7 +2665,7 @@ function projTotais(){
 function projSalvar(inp){
   const v=_parseBR(inp.value);setProj(inp.dataset.m,inp.dataset.c,v);
   inp.value=v!=null?String(v).replace('.',','):'';
-  saveData();projTotais();if(typeof renderEvolucaoFatura==='function')renderEvolucaoFatura();
+  syncProjecoesCartoes();saveData();projTotais();if(typeof renderEvolucaoFatura==='function')renderEvolucaoFatura();
 }
 function projKey(e,inp){
   if(e.key!=='Enter')return;e.preventDefault();
@@ -2647,7 +2678,7 @@ function projCopiarLinha(cid){
   for(let i=0;i<_projN;i++){const m=addM(base,i);if(_faturaRealMes(cid,m)!=null)continue;const p=getProj(m,cid);if(p!=null){src=p;i0=i;break;}}
   if(src==null){toast('Digite um valor na linha primeiro');return;}
   let n=0;for(let i=i0+1;i<_projN;i++){const m=addM(base,i);if(_faturaRealMes(cid,m)==null&&getProj(m,cid)==null){setProj(m,cid,src);n++;}}
-  saveData();_projRefresh();toast(n?('Copiado para '+n+' mês'+(n>1?'es':'')):'Nada vazio à direita');
+  syncProjecoesCartoes();saveData();_projRefresh();toast(n?('Copiado para '+n+' mês'+(n>1?'es':'')):'Nada vazio à direita');
 }
 function projPreencherMedia(){
   const base=_projMesHoje();let n=0;
@@ -2656,13 +2687,13 @@ function projPreencherMedia(){
     if(!vs.length)return;const media=Math.round(vs.reduce((a,v)=>a+v,0)/vs.length*100)/100;
     for(let i=0;i<_projN;i++){const m=addM(base,i);if(_faturaRealMes(c.id,m)==null&&getProj(m,c.id)==null){setProj(m,c.id,media);n++;}}
   });
-  if(n)saveData();_projRefresh();toast(n?(n+' células preenchidas com a média'):'Nenhuma célula vazia ou sem histórico');
+  syncProjecoesCartoes();if(n)saveData();_projRefresh();toast(n?(n+' células preenchidas com a média'):'Nenhuma célula vazia ou sem histórico');
 }
 function projMaisMes(){_projN=Math.min(24,_projN+1);renderProjecaoInto();}
 function projLimpar(){
   if(!D._faturasProj||!Object.keys(D._faturasProj).length){toast('Nada para limpar');return;}
   if(!confirm('Apagar toda a projeção digitada?'))return;
-  delete D._faturasProj;saveData();_projRefresh();toast('Projeção limpa');
+  delete D._faturasProj;syncProjecoesCartoes();saveData();_projRefresh();toast('Projeção limpa');
 }
 
 function renderCartoesDesktopNovo(){
