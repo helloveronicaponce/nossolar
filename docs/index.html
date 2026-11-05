@@ -2617,13 +2617,15 @@ function renderEvolucaoFatura(){
   const dados=meses.map(m=>({m,total:Object.values(fa[m]||{}).reduce((a,v)=>a+(typeof v==='number'?v:0),0)}));
   if(!dados.length){el.innerHTML='<div style="color:var(--t3);text-align:center;padding:1rem;font-size:13px">Sem histórico de faturas</div>';return;}
   const ult3=dados.slice(-3).map(x=>x.total).filter(v=>v>0);
-  const proj=ult3.length?Math.round(ult3.reduce((a,v)=>a+v,0)/ult3.length):0;
-  const max=Math.max(1,...dados.map(x=>x.total),proj);
+  const _pm=(typeof _projTotais==='function'?_projTotais():[]).filter(p=>!dados.some(d=>d.m===p.m));
+  const proj=_pm.length?_pm[0].total:(ult3.length?Math.round(ult3.reduce((a,v)=>a+v,0)/ult3.length):0);
+  const max=Math.max(1,...dados.map(x=>x.total),proj,..._pm.map(p=>p.total));
   el.innerHTML='<div style="display:flex;align-items:flex-end;justify-content:space-around;gap:.4rem;height:130px">'
     +dados.map(x=>{const h=Math.round(x.total/max*115);const lbl=MN[parseInt(x.m.slice(5),10)-1]+'/'+x.m.slice(2,4);return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0"><div title="${fv(x.total)}" style="width:60%;max-width:26px;height:${h}px;min-height:2px;background:var(--r);border-radius:4px 4px 0 0"></div><div style="font-size:9px;color:var(--t3);margin-top:2px">${lbl}</div></div>`;}).join('')
-    +`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%"><div title="Projeção ${fv(proj)}" style="width:60%;max-width:26px;height:${Math.round(proj/max*115)}px;min-height:2px;background:var(--a);opacity:.5;border:1px dashed var(--a);border-radius:4px 4px 0 0"></div><div style="font-size:9px;color:var(--a);margin-top:2px;font-weight:700">prev</div></div>`
+    +`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%"><div title="Projeção ${fv(proj)}" style="width:60%;max-width:26px;height:${Math.round(proj/max*115)}px;min-height:2px;background:var(--a);opacity:.5;border:1px dashed var(--a);border-radius:4px 4px 0 0"></div><div style="font-size:9px;color:var(--a);margin-top:2px;font-weight:700">${_pm.length?(MN[parseInt(_pm[0].m.slice(5),10)-1]+'/'+_pm[0].m.slice(2,4)):'prev'}</div></div>`
+    +_pm.slice(1).map(p=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%"><div title="Projeção ${fv(p.total)}" style="width:60%;max-width:26px;height:${Math.round(p.total/max*115)}px;min-height:2px;background:var(--a);opacity:.5;border:1px dashed var(--a);border-radius:4px 4px 0 0"></div><div style="font-size:9px;color:var(--a);margin-top:2px;font-weight:700">${MN[parseInt(p.m.slice(5),10)-1]+'/'+p.m.slice(2,4)}</div></div>`).join('')
     +'</div>'
-    +`<div style="text-align:center;font-size:12px;color:var(--t3);margin-top:.6rem">Próxima fatura estimada: <b style="color:var(--a)">${fv(proj)}</b> <span style="font-size:10px">(média dos últimos meses)</span></div>`;
+    +`<div style="text-align:center;font-size:12px;color:var(--t3);margin-top:.6rem">Próxima fatura estimada: <b style="color:var(--a)">${fv(proj)}</b> <span style="font-size:10px">${_pm.length?'(projeção que você lançou)':'(média dos últimos meses)'}</span></div>`;
 }
 
 /* ── C1+C2+C3: RESUMO CONSOLIDADO + ALERTAS DE VENCIMENTO + UTILIZAÇÃO ── */
@@ -2665,6 +2667,109 @@ function renderCartoesResumo(){
       +'</div>';
   }
   return html;
+}
+
+/* ── PROJEÇÃO DAS PRÓXIMAS FATURAS (digitação rápida: cartão × mês) ──
+   Guarda em D._faturasProj[AAAA-MM][idDoCartão] = valor. Não mistura com o histórico (D._faturas);
+   a fatura real do mês, quando existe, sempre prevalece e aparece só para leitura. */
+let _projN=6;
+function _projMesHoje(){const h=new Date();return h.getFullYear()+'-'+String(h.getMonth()+1).padStart(2,'0');}
+function _parseBR(s){s=String(s==null?'':s).replace(/[R$\s]/g,'');if(!s)return null;if(s.indexOf(',')>=0)s=s.replace(/\./g,'').replace(',','.');const n=parseFloat(s);return(isNaN(n)||n<0)?null:Math.round(n*100)/100;}
+function getProj(m,cid){const o=(D._faturasProj||{})[m];const v=o&&o[cid];return typeof v==='number'?v:null;}
+function setProj(m,cid,v){
+  if(!D._faturasProj)D._faturasProj={};
+  if(v==null){if(D._faturasProj[m]){delete D._faturasProj[m][cid];if(!Object.keys(D._faturasProj[m]).length)delete D._faturasProj[m];}}
+  else{if(!D._faturasProj[m])D._faturasProj[m]={};D._faturasProj[m][cid]=v;}
+}
+function _faturaRealMes(cid,m){const raw=_faturaRaw(cid,m);if(raw!=null&&raw>0)return raw;const l=_ccLanc(cid,m);return(l&&l.valor>0)?l.valor:null;}
+function _valorMes(cid,m){const r=_faturaRealMes(cid,m);if(r!=null)return r;const p=getProj(m,cid);return p!=null?p:0;}
+function _projTotais(){
+  const o=D._faturasProj||{};
+  return Object.keys(o).filter(m=>/^\d{4}-\d{2}$/.test(m)&&m>=_projMesHoje()).sort()
+    .map(m=>({m,total:getCartoes().reduce((s,c)=>s+_valorMes(c.id,m),0)})).filter(p=>p.total>0);
+}
+function buildProjecaoFaturas(){
+  const sec=document.createElement('div');sec.className='card';sec.id='proj-faturas';sec.style.cssText='margin-top:1.5rem';
+  renderProjecaoInto(sec);return sec;
+}
+function renderProjecaoInto(sec){
+  sec=sec||document.getElementById('proj-faturas');if(!sec)return;
+  const cs=getCartoes();const base=_projMesHoje();
+  const MNa=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const lbl=m=>MNa[+m.slice(5)-1]+'/'+m.slice(2,4);
+  const meses=[];for(let i=0;i<_projN;i++)meses.push(addM(base,i));
+  const bs='padding:.35rem .7rem;font-size:12px';
+  let h='<div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;margin-bottom:.9rem">'
+    +'<div class="nl-ch" style="margin:0">Projeção das próximas faturas <span class="sub">digite o previsto · Tab ou Enter avança</span></div>'
+    +'<div style="display:flex;gap:.4rem;flex-wrap:wrap">'
+    +'<button class="btn" style="'+bs+'" onclick="projPreencherMedia()" title="Preenche só as células vazias com a média das últimas 3 faturas de cada cartão">Preencher vazios com a média</button>'
+    +'<button class="btn" style="'+bs+'" onclick="projMaisMes()">+ mês</button>'
+    +'<button class="btn" style="'+bs+'" onclick="projLimpar()">Limpar</button></div></div>'
+    +'<div style="overflow-x:auto;-webkit-overflow-scrolling:touch"><table style="border-collapse:collapse;width:100%;font-size:13px">'
+    +'<thead><tr><th style="position:sticky;left:0;background:var(--w);text-align:left;padding:.35rem .5rem;font-size:11px;color:var(--t3);text-transform:uppercase">Cartão</th>'
+    +meses.map(m=>'<th style="text-align:right;padding:.35rem .4rem;font-size:11px;color:var(--t3);text-transform:uppercase;white-space:nowrap">'+lbl(m)+'</th>').join('')
+    +'<th></th></tr></thead><tbody>';
+  cs.forEach(c=>{
+    h+='<tr style="border-top:1px solid var(--b)"><td style="position:sticky;left:0;background:var(--w);padding:.3rem .5rem;white-space:nowrap;font-weight:600;color:var(--t)">'+(c.emoji||'💳')+' '+c.nome+'</td>';
+    h+=meses.map(m=>{
+      const real=_faturaRealMes(c.id,m);
+      if(real!=null)return '<td style="text-align:right;padding:.3rem .5rem;color:var(--t3);white-space:nowrap" title="Fatura já lançada: edite pelo cartão">'+fv(real)+' <span style="font-size:9px;font-weight:700;background:var(--bg);border-radius:6px;padding:1px 5px">real</span></td>';
+      const p=getProj(m,c.id);
+      return '<td style="padding:.2rem .25rem"><input class="proj-in" data-m="'+m+'" data-c="'+c.id+'" inputmode="decimal" placeholder="—" value="'+(p!=null?String(p).replace('.',','):'')+'" oninput="projTotais()" onchange="projSalvar(this)" onkeydown="projKey(event,this)" onfocus="this.select()" style="width:100%;min-width:88px;text-align:right;padding:.42rem .5rem;border:1.5px solid var(--b);border-radius:7px;font-size:13px;font-family:Inter,sans-serif;background:var(--w);color:var(--t)"/></td>';
+    }).join('');
+    h+='<td style="padding:.2rem"><button title="Copiar o primeiro valor da linha para os meses vazios à direita" onclick="projCopiarLinha(\''+c.id+'\')" style="border:1.5px solid var(--b);background:var(--bg);color:var(--t2);border-radius:7px;font-size:12px;padding:.3rem .5rem;cursor:pointer">→</button></td></tr>';
+  });
+  h+='<tr style="border-top:2px solid var(--b)"><td style="position:sticky;left:0;background:var(--w);padding:.45rem .5rem;font-weight:800;color:var(--t)">Total do mês</td>'
+    +meses.map(m=>'<td data-tot="'+m+'" style="text-align:right;padding:.45rem .5rem;font-weight:800;color:var(--t);white-space:nowrap">'+fv(cs.reduce((s,c)=>s+_valorMes(c.id,m),0))+'</td>').join('')+'<td></td></tr>'
+    +'</tbody></table></div>'
+    +'<div style="font-size:11.5px;color:var(--t3);margin-top:.7rem">Meses com fatura já lançada aparecem como <b>real</b> e não são editados aqui. A projeção alimenta o gráfico de evolução e não cria pagamentos.</div>';
+  sec.innerHTML=h;
+}
+function projTotais(){
+  const sec=document.getElementById('proj-faturas');if(!sec)return;
+  sec.querySelectorAll('td[data-tot]').forEach(td=>{
+    const m=td.dataset.tot;let t=0;
+    getCartoes().forEach(c=>{
+      const real=_faturaRealMes(c.id,m);
+      if(real!=null){t+=real;return;}
+      const inp=sec.querySelector('.proj-in[data-m="'+m+'"][data-c="'+c.id+'"]');
+      const v=inp?_parseBR(inp.value):null;if(v!=null)t+=v;
+    });
+    td.textContent=fv(t);
+  });
+}
+function projSalvar(inp){
+  const v=_parseBR(inp.value);setProj(inp.dataset.m,inp.dataset.c,v);
+  inp.value=v!=null?String(v).replace('.',','):'';
+  saveData();projTotais();if(typeof renderEvolucaoFatura==='function')renderEvolucaoFatura();
+}
+function projKey(e,inp){
+  if(e.key!=='Enter')return;e.preventDefault();
+  const l=[...document.querySelectorAll('#proj-faturas .proj-in[data-m="'+inp.dataset.m+'"]')];
+  const nx=l[l.indexOf(inp)+1];inp.blur();if(nx){nx.focus();nx.select();}
+}
+function _projRefresh(){renderProjecaoInto();if(typeof renderEvolucaoFatura==='function')renderEvolucaoFatura();}
+function projCopiarLinha(cid){
+  const base=_projMesHoje();let src=null,i0=-1;
+  for(let i=0;i<_projN;i++){const m=addM(base,i);if(_faturaRealMes(cid,m)!=null)continue;const p=getProj(m,cid);if(p!=null){src=p;i0=i;break;}}
+  if(src==null){toast('Digite um valor na linha primeiro');return;}
+  let n=0;for(let i=i0+1;i<_projN;i++){const m=addM(base,i);if(_faturaRealMes(cid,m)==null&&getProj(m,cid)==null){setProj(m,cid,src);n++;}}
+  saveData();_projRefresh();toast(n?('Copiado para '+n+' mês'+(n>1?'es':'')):'Nada vazio à direita');
+}
+function projPreencherMedia(){
+  const base=_projMesHoje();let n=0;
+  getCartoes().forEach(c=>{
+    const vs=[];for(let i=1;i<=6&&vs.length<3;i++){const r=_faturaRealMes(c.id,addM(base,-i));if(r!=null)vs.push(r);}
+    if(!vs.length)return;const media=Math.round(vs.reduce((a,v)=>a+v,0)/vs.length*100)/100;
+    for(let i=0;i<_projN;i++){const m=addM(base,i);if(_faturaRealMes(c.id,m)==null&&getProj(m,c.id)==null){setProj(m,c.id,media);n++;}}
+  });
+  if(n)saveData();_projRefresh();toast(n?(n+' células preenchidas com a média'):'Nenhuma célula vazia ou sem histórico');
+}
+function projMaisMes(){_projN=Math.min(24,_projN+1);renderProjecaoInto();}
+function projLimpar(){
+  if(!D._faturasProj||!Object.keys(D._faturasProj).length){toast('Nada para limpar');return;}
+  if(!confirm('Apagar toda a projeção digitada?'))return;
+  delete D._faturasProj;saveData();_projRefresh();toast('Projeção limpa');
 }
 
 function renderCartoesDesktopNovo(){
@@ -2772,6 +2877,7 @@ function renderCartoesDesktopNovo(){
     });
     container.appendChild(cardsSection);
   }
+  container.appendChild(buildProjecaoFaturas());
   container.appendChild(graficoSection);
 
   // C4/C5 Evolução + Projeção da fatura
