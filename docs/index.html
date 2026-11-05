@@ -583,7 +583,8 @@ body.dark-mode{--g2:#7fae98;--r2:#cd9089}
       <div class="fg"><label class="fl">Categoria</label><select class="fi" id="f-cat"><option>Casa</option><option>Educação</option><option>Cartões</option><option>Saúde</option><option>Receitas</option><option>Carro</option><option>Outros</option></select></div>
       <div class="fg"><label class="fl" id="f-vlbl">Valor (R$)</label><input class="fi" type="number" id="f-val" placeholder="0,00" step="0.01" oninput="recalc()"/></div>
       <div class="fg full"><label class="fl">Observação</label><input class="fi" type="text" id="f-obs" placeholder="Opcional"/></div>
-      <div class="fg full"><label class="fl">Tipo de pagamento</label><select class="fi" id="f-pt" onchange="toggleP()"><option value="unico">Único</option><option value="parcelado">Parcelado</option></select></div>
+      <div class="fg full"><label class="fl">Tipo de pagamento</label><select class="fi" id="f-pt" onchange="toggleP()"><option value="unico">Único</option><option value="parcelado">Parcelado</option><option value="cartao">💳 Cartão (fatura)</option></select></div>
+      <div id="cartf" style="display:none" class="fg full"><div class="fs"><div class="fst">Fatura do cartão</div><div class="pr"><div class="fg"><label class="fl">Cartão</label><select class="fi" id="f-cartao"></select></div><div class="fg"><label class="fl">Mês da fatura</label><input class="fi" type="month" id="f-cmes"/></div></div><label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;margin-top:.5rem;font-size:13px"><input type="checkbox" id="f-creal" style="width:16px;height:16px;accent-color:var(--g)"> Fatura já fechada (valor real, não projeção)</label><div style="font-size:12px;color:var(--t3);margin-top:.4rem">Sem marcar, entra como <b>projeção</b> e aparece nos lançamentos do mês como "Fatura (prevista)".</div></div></div>
       <div class="fg full" style="margin-top:-.25rem">
         <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;padding:.5rem .75rem;background:var(--bg);border-radius:8px;border:1.5px solid var(--b)">
           <input type="checkbox" id="f-rec" style="width:16px;height:16px;accent-color:var(--g)">
@@ -2176,9 +2177,17 @@ function editSaldo(e,elId){
 
 /* ── MODAL ── */
 function toggleP(){
-  const pt=document.getElementById('f-pt').value;const p=pt==='parcelado';
+  const pt=document.getElementById('f-pt').value;const p=pt==='parcelado',cc=pt==='cartao';
   document.getElementById('pf').style.display=p?'block':'none';
-  document.getElementById('f-vlbl').textContent=p?'Valor (por parcela ou total)':'Valor (R$)';
+  const cf=document.getElementById('cartf');if(cf)cf.style.display=cc?'block':'none';
+  const rc=document.getElementById('f-rec');if(rc&&rc.parentElement&&rc.parentElement.parentElement)rc.parentElement.parentElement.style.display=cc?'none':'';
+  document.getElementById('f-vlbl').textContent=p?'Valor (por parcela ou total)':(cc?'Valor da fatura (R$)':'Valor (R$)');
+  if(cc){
+    const sel=document.getElementById('f-cartao');
+    if(sel&&!sel.options.length)getCartoes().forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.nome;sel.appendChild(o);});
+    const cm=document.getElementById('f-cmes');if(cm&&!cm.value)cm.value=mes;
+    document.getElementById('f-cat').value='Cartões';document.getElementById('f-tipo').value='out';
+  }
   if(p)recalc();
 }
 function recalc(){
@@ -2215,6 +2224,8 @@ function openModal(id){
     document.getElementById('f-cp').value='1';
     document.getElementById('parcela-hist').style.display='none';
   }
+  const _oc=document.querySelector('#f-pt option[value="cartao"]');if(_oc)_oc.disabled=!!id;
+  const _cm=document.getElementById('f-cmes');if(_cm)_cm.value=mes;const _cr=document.getElementById('f-creal');if(_cr)_cr.checked=false;
   toggleP();document.getElementById('mo').style.display='flex';
 }
 /* Histórico de todas as parcelas de uma compra parcelada, agrupadas pela mesma chave usada em getParcelamentos() */
@@ -2249,8 +2260,23 @@ function renderParcelaHistorico(r){
   box.style.display='block';
 }
 function closeModal(){document.getElementById('mo').style.display='none';eid=null;}
+/* Lançamento do tipo Cartão (titular, 05/11/2026): vira fatura real ou projeção do cartão no mês escolhido */
+function saveCartaoLanc(){
+  const cid=document.getElementById('f-cartao').value;const m=document.getElementById('f-cmes').value;
+  const v=parseFloat(document.getElementById('f-val').value);const real=document.getElementById('f-creal').checked;
+  const c=getCartoes().find(x=>x.id===cid);
+  if(!c||!/^\d{4}-\d{2}$/.test(m)||!(v>0)){toast('Escolha o cartão, o mês e um valor maior que zero');return;}
+  const val=+v.toFixed(2);
+  if(real){if(!D._faturas)D._faturas={};if(!D._faturas[m])D._faturas[m]={};D._faturas[m][c.nome]=val;const old=mes;mes=m;try{syncTodosCartoes();}finally{mes=old;}}
+  else setProj(m,cid,val);
+  syncProjecoesCartoes();saveData();closeModal();render();
+  if(document.getElementById('page-cartoes')&&typeof renderCartoesDesktopNovo==='function')renderCartoesDesktopNovo();
+  if(typeof renderLancamentosDesktop==='function')try{renderLancamentosDesktop();}catch(e){}
+  toast('Fatura '+c.nome+' de '+m.slice(5)+'/'+m.slice(0,4)+(real?' lançada':' projetada')+' ✓');
+}
 function saveItem(){
   const pt=document.getElementById('f-pt').value;
+  if(pt==='cartao'&&!eid){saveCartaoLanc();return;}
   const parcelas=pt==='parcelado'?parseInt(document.getElementById('f-pn').value)||1:1;
   const pa=pt==='parcelado'?parseInt(document.getElementById('f-pa').value)||1:1;
   const criar=!eid&&pt==='parcelado'&&document.getElementById('f-cp').value==='1';
