@@ -148,7 +148,7 @@ body{font-family:Inter,sans-serif;background:var(--bg);color:var(--t);font-size:
 .pb-u{background:var(--bg);color:var(--t3)}
 .pb-p{background:var(--bg);color:var(--t2)}
 .pb-c{background:var(--al);color:var(--a)}
-.ra{display:flex;gap:4px;justify-content:flex-end;opacity:0}
+.ra{display:flex;gap:4px;justify-content:flex-end;opacity:.45}
 .tr:hover .ra{opacity:1}
 .cb-col{display:flex;align-items:center;justify-content:center}
 input.row-cb{width:15px;height:15px;accent-color:var(--g);cursor:pointer;opacity:0;transition:opacity .15s}
@@ -616,7 +616,7 @@ body.dark-mode{--g2:#7fae98;--r2:#cd9089}
         </div>
       </div>
     </div>
-    <div class="mf"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn g" onclick="saveItem()">Salvar</button></div>
+    <div class="mf"><button class="btn" id="f-del" style="display:none;margin-right:auto;color:var(--r)" onclick="const i=eid;closeModal();delItem(i)">🗑 Excluir</button><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn g" onclick="saveItem()">Salvar</button></div>
   </div>
 </div>
 
@@ -651,7 +651,7 @@ function _ccLanc(cid,m){return (D[m]||[]).find(r=>r.id==='cc_'+cid+'_'+m);}
 // valor da fatura do MÊS SELECIONADO: prioriza a fatura importada; senão o valor do lançamento vinculado
 function getFatura(cid){const raw=_faturaRaw(cid,mes);if(raw!=null)return raw;const l=_ccLanc(cid,mes);return l?(l.valor||0):0;}
 function _faturaMesUsado(cid){return mes;} // compat: o cartão sempre reflete o mês selecionado
-function setFatura(cid,valor){if(!D['_faturas'])D['_faturas']={};if(!D['_faturas'][mes])D['_faturas'][mes]={};D['_faturas'][mes][_cardNome(cid)]=valor;}
+function setFatura(cid,valor){_ccRestaura(cid,mes);if(!D['_faturas'])D['_faturas']={};if(!D['_faturas'][mes])D['_faturas'][mes]={};D['_faturas'][mes][_cardNome(cid)]=valor;}
 // status da fatura do mês (com base no lançamento vinculado + vencimento + contexto do mês)
 function faturaStatus(cid){
   const fat=getFatura(cid),l=_ccLanc(cid,mes);
@@ -672,13 +672,16 @@ function faturaStatus(cid){
 }
 // cria/atualiza automaticamente os lançamentos de pagamento a partir das faturas importadas do mês
 // (não sobrescreve status nem faturas já pagas — só materializa o vínculo e mantém o valor em dia)
+// linha de fatura real removida pela titular: o sync não a recria até ela lançar ou pagar a fatura de novo
+function _ccRemovido(cid,m){const o=(D._ccRemovidos||{})[m];return !!(o&&o[cid]);}
+function _ccRestaura(cid,m){const o=(D._ccRemovidos||{})[m];if(o){delete o[cid];if(!Object.keys(o).length)delete D._ccRemovidos[m];}}
 function syncTodosCartoes(){
   const hoje=new Date();const mesHoje=hoje.getFullYear()+'-'+String(hoje.getMonth()+1).padStart(2,'0');
   if(mes<mesHoje)return false; // NUNCA cria/altera pagamento retroativo em meses passados (não inventa dívida no histórico)
   let changed=false;const cs=getCartoes();
   cs.forEach(c=>{
     const raw=_faturaRaw(c.id,mes);
-    if(raw==null||raw<=0)return;
+    if(raw==null||raw<=0||_ccRemovido(c.id,mes))return;
     if(!D[mes])D[mes]=[];
     const id='cc_'+c.id+'_'+mes;const ex=D[mes].find(r=>r.id===id);
     if(!ex){
@@ -1809,6 +1812,7 @@ function renderSide(){
 /* ── EDIT CARTÃO ── */
 function syncCartaoLancamento(c){
   const fatura=getFatura(c.id);
+  if(_ccRemovido(c.id,mes))return;
   if(!fatura||fatura<=0){if(D[mes])D[mes]=D[mes].filter(r=>r.id!=='cc_'+c.id+'_'+mes);return;}
   const[ano,mo]=mes.split('-');const dia=String(c.vencimento).padStart(2,'0');
   const vencDate=ano+'-'+mo+'-'+dia;const lancId='cc_'+c.id+'_'+mes;
@@ -1832,7 +1836,7 @@ function pagarFaturaCartao(cid){
   const lancId='cc_'+c.id+'_'+mes;if(!D[mes])D[mes]=[];
   const idx=D[mes].findIndex(r=>r.id===lancId);
   if(idx>=0){D[mes][idx].status='pago';D[mes][idx].pag=today();}
-  else{syncCartaoLancamento(c);const i=D[mes].findIndex(r=>r.id===lancId);if(i>=0){D[mes][i].status='pago';D[mes][i].pag=today();}}
+  else{_ccRestaura(c.id,mes);syncCartaoLancamento(c);const i=D[mes].findIndex(r=>r.id===lancId);if(i>=0){D[mes][i].status='pago';D[mes][i].pag=today();}}
   saveData();reRender();toast('Fatura '+c.nome+' marcada como paga ✅');
 }
 // toggle usado na tabela de Cartões: mesmo botão marca como pago (cinza→verde) e desfaz (verde→cinza)
@@ -2102,7 +2106,18 @@ function delItem(id){
   const r=rows().find(x=>x.id===id);
   if(r&&(r.recorrente||r._recClone)){delRecMenu(id,r);return;}
   if(!confirm('Remover este lançamento?'))return;
-  D[mes]=(D[mes]||[]).filter(x=>x.id!==id);saveData();reRender();
+  _removeLanc(id);saveData();reRender();
+  if(_ccRemovido(String(id).replace(/^cc_(.+)_\d{4}-\d{2}$/,'$1'),mes))toast('Lançamento removido; o valor da fatura continua na aba Cartões');
+}
+// Remove do mês atual. Fatura de cartão: apaga a projeção ou marca a real para o sync não recriar. Recorrente repetida: pula o mês.
+function _removeLanc(id){
+  const r=rows().find(x=>x.id===id);
+  D[mes]=(D[mes]||[]).filter(x=>x.id!==id);
+  const cc=String(id).match(/^cc_(.+)_(\d{4}-\d{2})$/);
+  if(cc){
+    setProj(cc[2],cc[1],null);
+    if(_faturaRaw(cc[1],cc[2])>0){if(!D._ccRemovidos)D._ccRemovidos={};if(!D._ccRemovidos[cc[2]])D._ccRemovidos[cc[2]]={};D._ccRemovidos[cc[2]][cc[1]]=true;}
+  }else if(r&&r._recClone){D[mes].push({id,_deletado:true});}
 }
 /* ── MENU de exclusão / encerramento de recorrentes ── */
 function delRecMenu(id,r){
@@ -2124,7 +2139,7 @@ function delRecMenu(id,r){
   const close=()=>ov.remove();
   ov.addEventListener('click',e=>{if(e.target===ov)close();});
   const esteBtn=ov.querySelector('.dr-este');
-  if(esteBtn)esteBtn.onclick=()=>{close();if(!D[mes])D[mes]=[];D[mes].push({id:'rec_'+paiId+'_'+mes,_deletado:true});saveData();reRender();toast('Pulado em '+lbl);};
+  if(esteBtn)esteBtn.onclick=()=>{close();_removeLanc('rec_'+paiId+'_'+mes);saveData();reRender();toast('Pulado em '+lbl);};
   ov.querySelector('.dr-fim').onclick=()=>{close();encerrarRecorrente(paiId,lbl);};
   ov.querySelector('.dr-all').onclick=()=>{close();if(!confirm('Apagar "'+(r.desc||'')+'" de TODOS os meses (inclusive histórico)?'))return;Object.keys(D).forEach(m=>{if(Array.isArray(D[m]))D[m]=D[m].filter(x=>x.id!==paiId&&x._recClone!==paiId);});saveData();reRender();toast('Recorrência apagada');};
   ov.querySelector('.dr-can').onclick=close;
@@ -2143,7 +2158,7 @@ function onCBChange(cb){const id=cb.dataset.id;const row=cb.closest('.tr');if(cb
 function toggleAllCB(checked){selIds.clear();document.querySelectorAll('.row-cb').forEach(cb=>{cb.checked=checked;const row=cb.closest('.tr');if(checked){selIds.add(cb.dataset.id);row&&row.classList.add('sel');}else{row&&row.classList.remove('sel');}});updateBulkBar();}
 function updateBulkBar(){const bar=document.getElementById('bulk-bar');const cnt=document.getElementById('bulk-count');if(!bar)return;if(selIds.size>0){bar.classList.add('on');if(cnt)cnt.textContent=selIds.size+' selecionado'+(selIds.size>1?'s':'');}else{bar.classList.remove('on');const cbAll=document.getElementById('cb-all');if(cbAll)cbAll.checked=false;}}
 function clearSel(){selIds.clear();document.querySelectorAll('.row-cb').forEach(cb=>{cb.checked=false;cb.closest('.tr')?.classList.remove('sel');});updateBulkBar();}
-function bulkDelete(){if(!selIds.size)return;if(!confirm('Remover '+selIds.size+' lançamento(s)?'))return;selIds.forEach(id=>{D[mes]=(D[mes]||[]).filter(x=>x.id!==id);});selIds.clear();saveData();reRender();}
+function bulkDelete(){if(!selIds.size)return;if(!confirm('Remover '+selIds.size+' lançamento(s)?'))return;selIds.forEach(id=>_removeLanc(id));selIds.clear();saveData();reRender();}
 function bulkStatus(status){if(!selIds.size)return;const cnt=selIds.size;if(!D[mes])D[mes]=[];const virt=rows();selIds.forEach(id=>{const idx=D[mes].findIndex(x=>x.id===id);const pag=status==='pago'?today():null;if(idx>=0){D[mes][idx].status=status;D[mes][idx].pag=pag;}else{const r=virt.find(x=>x.id===id);if(r)D[mes].push({...r,status,pag});}});selIds.clear();saveData();reRender();toast('✅ '+cnt+' itens marcados como '+(SL[status]||status));}
 
 /* ── EDIT SALDO ── */
@@ -2224,6 +2239,7 @@ function openModal(id){
     document.getElementById('f-cp').value='1';
     document.getElementById('parcela-hist').style.display='none';
   }
+  const _fd=document.getElementById('f-del');if(_fd)_fd.style.display=id?'':'none';
   const _oc=document.querySelector('#f-pt option[value="cartao"]');if(_oc)_oc.disabled=!!id;
   const _cm=document.getElementById('f-cmes');if(_cm)_cm.value=mes;const _cr=document.getElementById('f-creal');if(_cr)_cr.checked=false;
   toggleP();document.getElementById('mo').style.display='flex';
@@ -2267,7 +2283,7 @@ function saveCartaoLanc(){
   const c=getCartoes().find(x=>x.id===cid);
   if(!c||!/^\d{4}-\d{2}$/.test(m)||!(v>0)){toast('Escolha o cartão, o mês e um valor maior que zero');return;}
   const val=+v.toFixed(2);
-  if(real){if(!D._faturas)D._faturas={};if(!D._faturas[m])D._faturas[m]={};D._faturas[m][c.nome]=val;const old=mes;mes=m;try{syncTodosCartoes();}finally{mes=old;}}
+  if(real){_ccRestaura(cid,m);if(!D._faturas)D._faturas={};if(!D._faturas[m])D._faturas[m]={};D._faturas[m][c.nome]=val;const old=mes;mes=m;try{syncTodosCartoes();}finally{mes=old;}}
   else setProj(m,cid,val);
   syncProjecoesCartoes();
   // garante a linha na tabela de lançamentos (mês passado não passa pelo sync) e leva a tela ao mês lançado
