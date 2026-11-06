@@ -2172,7 +2172,14 @@ function saveCartaoLanc(){
   const val=+v.toFixed(2);
   if(real){if(!D._faturas)D._faturas={};if(!D._faturas[m])D._faturas[m]={};D._faturas[m][c.nome]=val;const old=mes;mes=m;try{syncTodosCartoes();}finally{mes=old;}}
   else setProj(m,cid,val);
-  syncProjecoesCartoes();saveData();closeModal();render();
+  syncProjecoesCartoes();
+  // garante a linha na tabela de lançamentos (mês passado não passa pelo sync) e leva a tela ao mês lançado
+  if(!real&&!(D[m]||[]).some(r=>r.id==='cc_'+cid+'_'+m)){
+    if(!D[m])D[m]=[];const[_a,_mo]=m.split('-');const _d=String(Math.min(28,parseInt(c.vencimento)||1)).padStart(2,'0');
+    D[m].push({id:'cc_'+cid+'_'+m,tipo:'out',venc:_a+'-'+_mo+'-'+_d,pag:null,desc:'Fatura '+c.nome+' (prevista)',cat:'Cartões',valor:val,status:'pendente',obs:'Fatura projetada — '+c.nome+' (estimativa, não confirmada)',parcelas:1,parcelaAtual:1,_estimativa:true,_proj:true,_projValor:val});
+  }
+  saveData();closeModal();
+  if(m!==mes){try{changeMes(m);}catch(e){mes=m;}}else render();
   if(document.getElementById('page-cartoes')&&typeof renderCartoesDesktopNovo==='function')renderCartoesDesktopNovo();
   if(typeof renderLancamentosDesktop==='function')try{renderLancamentosDesktop();}catch(e){}
   toast('Fatura '+c.nome+' de '+m.slice(5)+'/'+m.slice(0,4)+(real?' lançada':' projetada')+' ✓');
