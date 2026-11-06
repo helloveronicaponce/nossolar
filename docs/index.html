@@ -757,7 +757,7 @@ function mesFuturo(m){const[y,mo]=m.split('-');return new Date(+y,+mo-1,1)>new D
 function _tetoRow(m,lst){
   const t=D._tetoCartoes;if(!t||!(t.valor>0)||!t.desde)return null;
   if(m<t.desde||(t.ate&&m>t.ate))return null;
-  const id='teto_cartoes_'+m;if(lst.some(r=>r.id===id))return null; // ajuste manual gravado prevalece
+  const id='teto_cartoes_'+m;if(lst.some(r=>r.id===id)||(D[m]||[]).some(r=>r.id===id&&r._deletado))return null; // ajuste manual gravado prevalece; removida pela titular não volta
   const pf=D._faturaParcelasFuturas||{};
   const parc=Object.values(pf).reduce((s,o)=>s+(+((o||{})[m])||0),0);
   const previsto=+(t.valor+parc).toFixed(2);
@@ -2109,7 +2109,7 @@ function delItem(id){
   _removeLanc(id);saveData();reRender();
   if(_ccRemovido(String(id).replace(/^cc_(.+)_\d{4}-\d{2}$/,'$1'),mes))toast('Lançamento removido; o valor da fatura continua na aba Cartões');
 }
-// Remove do mês atual. Fatura de cartão: apaga a projeção ou marca a real para o sync não recriar. Recorrente repetida: pula o mês.
+// Remove do mês atual. Fatura de cartão: apaga a projeção ou marca a real para o sync não recriar. Recorrente repetida e meta de cartões: somem só deste mês.
 function _removeLanc(id){
   const r=rows().find(x=>x.id===id);
   D[mes]=(D[mes]||[]).filter(x=>x.id!==id);
@@ -2117,7 +2117,7 @@ function _removeLanc(id){
   if(cc){
     setProj(cc[2],cc[1],null);
     if(_faturaRaw(cc[1],cc[2])>0){if(!D._ccRemovidos)D._ccRemovidos={};if(!D._ccRemovidos[cc[2]])D._ccRemovidos[cc[2]]={};D._ccRemovidos[cc[2]][cc[1]]=true;}
-  }else if(r&&r._recClone){D[mes].push({id,_deletado:true});}
+  }else if(r&&(r._recClone||r._teto||String(id).startsWith('teto_cartoes_'))){D[mes].push({id,_deletado:true});}
 }
 /* ── MENU de exclusão / encerramento de recorrentes ── */
 function delRecMenu(id,r){
